@@ -5,8 +5,19 @@ using Microsoft.Extensions.Options;
 
 namespace AnalisisSentimiento.Infrastructure.SocialListening.Apify;
 
-public sealed class ApifyClient(HttpClient httpClient, IOptions<SocialListeningOptions> options)
+public sealed class ApifyClient
 {
+    private readonly HttpClient httpClient;
+    private readonly IOptions<SocialListeningOptions> options;
+
+    // The optional options parameter keeps direct integrations/tests compatible
+    // while leaving only one constructor for ASP.NET typed-client activation.
+    public ApifyClient(HttpClient httpClient, IOptions<SocialListeningOptions>? options = null)
+    {
+        this.httpClient = httpClient;
+        this.options = options ?? Options.Create(new SocialListeningOptions());
+    }
+
     public async Task<IReadOnlyList<JsonElement>> RunActorSyncAsync(
         string actorId,
         object input,

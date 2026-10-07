@@ -130,7 +130,8 @@ html, body {
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  transition: transform var(--transition-normal);
+  transition: width var(--transition-normal), transform var(--transition-normal), background-color var(--transition-normal);
+  will-change: width, transform;
 }
 
 .sidebar-header {
@@ -162,7 +163,14 @@ html, body {
   font-weight: 800;
   font-size: 1.25rem;
   box-shadow: var(--shadow-glow);
+  position: relative;
+  overflow: hidden;
 }
+
+.brand-logo svg { width: 31px; height: 31px; overflow: visible; }
+.brand-orbit { fill: none; stroke: rgba(255,255,255,.9); stroke-width: 2.2; stroke-linecap: round; }
+.brand-core { fill: #ffffff; filter: drop-shadow(0 0 4px rgba(255,255,255,.85)); }
+.brand-signal { fill: none; stroke: #dbeafe; stroke-width: 2.1; stroke-linecap: round; }
 
 .brand-text strong {
   display: block;
@@ -177,6 +185,10 @@ html, body {
   color: var(--text-muted);
   font-weight: 500;
 }
+
+.history-platform-breakdown { display: grid; gap: .55rem; margin-top: .55rem; }
+.history-platform-row { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem .8rem; padding: .65rem .75rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-input); }
+.history-platform-row > strong { min-width: 82px; color: var(--text-primary); }
 
 .sidebar-close-btn {
   display: none;
@@ -327,6 +339,8 @@ html, body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  transition: margin-left var(--transition-normal);
+  will-change: margin-left;
 }
 
 /* Top Header & Dynamic Island Notch */
@@ -514,6 +528,10 @@ html, body {
 
 .view-panel.active { display: flex; }
 
+/* En cada módulo la nube resume primero y la tabla queda debajo. */
+.view-panel[id^="view-"] .network-cloud-card { order: 4; }
+.view-panel[id^="view-"] .workspace-card { order: 5; }
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -565,11 +583,7 @@ html, body {
 
 @media (min-width: 1025px) {
   .app-sidebar {
-    transition: width var(--transition-normal), transform var(--transition-normal);
-  }
-
-  .app-main-wrapper {
-    transition: margin-left var(--transition-normal);
+    transition: width var(--transition-normal), transform var(--transition-normal), background-color var(--transition-normal);
   }
 
   .app-sidebar.collapsed {

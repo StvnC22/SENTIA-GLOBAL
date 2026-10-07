@@ -22,7 +22,12 @@
       <div class="sidebar-header">
         <a class="brand-link" href="#" data-nav="dashboard" title="Sentia Global">
           <div class="brand-logo">
-            <span>S</span>
+            <svg viewBox="0 0 48 48" role="img" aria-label="Icono de Sentia Global">
+              <path class="brand-orbit" d="M24 5c10.5 0 19 5.2 19 11.5S34.5 28 24 28 5 22.8 5 16.5 13.5 5 24 5Z"/>
+              <path class="brand-orbit" d="M13 10.5c5.3-9 14.8-8.5 21.1.2 6.2 8.7 6.7 18.3 1.1 21.5-5.6 3.2-14.8-1.2-21-9.9-2.8-3.9-4.3-8.1-4.2-11.6"/>
+              <circle class="brand-core" cx="24" cy="20" r="5.2"/>
+              <path class="brand-signal" d="M24 25.5v12M18.5 32h11M20.5 37.5h7"/>
+            </svg>
           </div>
           <div class="brand-text">
             <strong>Sentia Global</strong>
@@ -150,10 +155,6 @@
             </button>
           </div>
 
-          <button class="action-pill-btn" id="refreshButton" type="button" title="Actualizar datos (Fuerza nueva extracción)">
-            <svg class="spin-icon" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            <span>Actualizar</span>
-          </button>
         </div>
       </header>
 
@@ -512,7 +513,7 @@
           </div>
 
           <!-- Semantic Cloud -->
-          <div class="glass-card">
+          <div class="glass-card network-cloud-card">
             <div class="card-header">
               <h3>Nube Semántica de Instagram</h3>
               <span class="card-tag" id="instagramCloudMeta">0 términos</span>
@@ -619,7 +620,7 @@
           </div>
 
           <!-- Semantic Cloud -->
-          <div class="glass-card">
+          <div class="glass-card network-cloud-card">
             <div class="card-header">
               <h3>Nube Semántica de Facebook</h3>
               <span class="card-tag" id="facebookCloudMeta">0 términos</span>
@@ -726,7 +727,7 @@
           </div>
 
           <!-- Semantic Cloud -->
-          <div class="glass-card">
+          <div class="glass-card network-cloud-card">
             <div class="card-header">
               <h3>Nube Semántica de TikTok</h3>
               <span class="card-tag" id="tiktokCloudMeta">0 términos</span>
@@ -833,7 +834,7 @@
           </div>
 
           <!-- Semantic Cloud -->
-          <div class="glass-card">
+          <div class="glass-card network-cloud-card">
             <div class="card-header">
               <h3>Nube Semántica de X</h3>
               <span class="card-tag" id="xCloudMeta">0 términos</span>
@@ -1212,6 +1213,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=sentia-20261006-v3" defer></script>
+  <script src="/app.js?v=sentia-20261006-v10" defer></script>
 </body>
 </html>

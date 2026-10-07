@@ -336,7 +336,11 @@ function renderNetworkModule(platform) {
     bodyEl.innerHTML = comments.map(comment => renderCommentRow(comment, false)).join("");
   }
   if (emptyEl) {
-    emptyEl.hidden = comments.length > 0;
+    // If another network already returned data, avoid showing a misleading
+    // empty-state card for a network with zero results.
+    const shouldShowEmpty = comments.length === 0 && state.comments.length === 0;
+    emptyEl.hidden = !shouldShowEmpty;
+    emptyEl.style.display = shouldShowEmpty ? "flex" : "none";
     // A non-empty metric with an empty table means a search/sentiment filter
     // is active, not that the API returned no comments.
     if (comments.length === 0 && allPlatformComments.length > 0) {
@@ -476,8 +480,22 @@ function loadHistory() {
   }
 }
 
-function saveHistoryRecord(dashboard, assignedPlatforms, promptText) {
+function saveHistoryRecord(dashboard, assignedPlatforms, promptText, durationSeconds = 0) {
   if (!dashboard) return;
+  const analyzedComments = (dashboard.comments || []).map(comment => ({
+    ...comment,
+    platform: normalizePlatform(comment.platform)
+  }));
+  const byPlatform = {};
+  for (const platform of ["instagram", "facebook", "tiktok", "x"]) {
+    const platformComments = analyzedComments.filter(comment => comment.platform === platform);
+    byPlatform[platform] = {
+      total: platformComments.length,
+      positive: platformComments.filter(c => c.sentiment?.label === "positive").length,
+      neutral: platformComments.filter(c => c.sentiment?.label === "neutral").length,
+      negative: platformComments.filter(c => c.sentiment?.label === "negative").length
+    };
+  }
   const record = {
     id: "hist_" + Date.now(),
     timestamp: new Date().toISOString(),
@@ -485,10 +503,14 @@ function saveHistoryRecord(dashboard, assignedPlatforms, promptText) {
     platforms: assignedPlatforms.map(item => item.platform),
     urls: { ...state.sources },
     prompt: promptText || "",
-    totalComments: dashboard.comments ? dashboard.comments.length : 0,
-    positive: (dashboard.comments || []).filter(c => c.sentiment?.label === "positive").length,
-    neutral: (dashboard.comments || []).filter(c => c.sentiment?.label === "neutral").length,
-    negative: (dashboard.comments || []).filter(c => c.sentiment?.label === "negative").length,
+    durationSeconds: Math.max(0, Number(durationSeconds) || 0),
+    durationLabel: formatAnalysisDuration(durationSeconds),
+    totalComments: analyzedComments.length,
+    positive: analyzedComments.filter(c => c.sentiment?.label === "positive").length,
+    neutral: analyzedComments.filter(c => c.sentiment?.label === "neutral").length,
+    negative: analyzedComments.filter(c => c.sentiment?.label === "negative").length,
+    byPlatform,
+    comments: analyzedComments,
     dataSource: dashboard.dataSource || "demo",
     message: dashboard.message || ""
   };
@@ -501,6 +523,14 @@ function saveHistoryRecord(dashboard, assignedPlatforms, promptText) {
   } catch (e) {}
 
   renderSidebarCounts();
+}
+
+function formatAnalysisDuration(value) {
+  const totalSeconds = Math.max(0, Math.round(Number(value) || 0));
+  if (!totalSeconds) return "No disponible";
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes} min ${seconds} s` : `${seconds} s`;
 }
 
 function renderHistoryTable() {
@@ -565,6 +595,7 @@ window.openHistoryDetail = function(id) {
       <div style="display:flex; flex-direction:column; gap:1rem; font-size:0.9rem;">
         <div><strong>Fecha:</strong> ${escapeHtml(record.formattedDate)}</div>
         <div><strong>Estado:</strong> ${record.dataSource === "live" ? "Conexión Real" : "Demostrativo"}</div>
+        <div><strong>Tiempo de análisis:</strong> ${escapeHtml(record.durationLabel || formatAnalysisDuration(record.durationSeconds))}</div>
         <div><strong>Prompt Utilizado:</strong> ${escapeHtml(record.prompt || "Ninguno (Recomendado)")}</div>
         <div>
           <strong>Desglose de Comentarios:</strong>
@@ -574,6 +605,10 @@ window.openHistoryDetail = function(id) {
             <li>Neutrales: ${record.neutral}</li>
             <li>Negativos: ${record.negative}</li>
           </ul>
+        </div>
+        <div>
+          <strong>Desglose por red social:</strong>
+          <div class="history-platform-breakdown">${renderHistoryPlatformBreakdown(record)}</div>
         </div>
         <div>
           <strong>URLs Consultadas:</strong>
@@ -594,6 +629,22 @@ window.openHistoryDetail = function(id) {
   modal.showModal();
 };
 
+function renderHistoryPlatformBreakdown(record) {
+  const source = record.byPlatform || {};
+  const platforms = Object.entries(source).filter(([, stats]) => stats && stats.total > 0);
+  if (!platforms.length) {
+    return '<span class="insight-empty">No hay detalle por red guardado en este registro antiguo.</span>';
+  }
+  return platforms.map(([platform, stats]) => `
+    <div class="history-platform-row">
+      <strong>${escapeHtml(platformLabel(platform))}</strong>
+      <span>Total ${stats.total}</span>
+      <span class="sentiment positive">${stats.positive} positivos</span>
+      <span class="sentiment neutral">${stats.neutral} neutrales</span>
+      <span class="sentiment negative">${stats.negative} negativos</span>
+    </div>`).join("");
+}
+
 window.reloadHistoryQuery = function(id) {
   const record = state.history.find(r => r.id === id);
   if (!record) return;
@@ -608,28 +659,62 @@ window.reloadHistoryQuery = function(id) {
     syncPromptInputs(record.prompt);
   }
 
+  // Los registros nuevos contienen el resultado completo. Restaurarlo evita
+  // repetir una corrida de Apify que puede fallar por créditos, token o una
+  // URL que ya no está disponible, y conserva exactamente lo que se analizó.
+  if (Array.isArray(record.comments) && record.comments.length > 0) {
+    const restoredComments = record.comments.map(comment => ({
+      ...comment,
+      platform: normalizePlatform(comment.platform)
+    }));
+    const restoredPlatforms = new Set(
+      (record.platforms || restoredComments.map(comment => comment.platform))
+        .map(normalizePlatform)
+    );
+    // Reactivar Instagram no debe borrar Facebook, TikTok ni X. Solo se
+    // reemplaza la plataforma incluida en el registro que se está cargando.
+    state.comments = [
+      ...state.comments.filter(comment => !restoredPlatforms.has(normalizePlatform(comment.platform))),
+      ...restoredComments
+    ];
+    state.dataSource = record.dataSource || "live";
+    state.summary = null;
+    navigateTo(record.platforms.length === 1 ? record.platforms[0] : "global");
+    renderActiveView();
+    showToast(`Análisis del ${record.formattedDate} restaurado desde el historial`);
+    return;
+  }
+
   showToast("Consulta del historial cargada en los campos");
   navigateTo(record.platforms.length === 1 ? record.platforms[0] : "global");
-  loadComments({ notify: true, force: true });
+  // Compatibilidad con registros antiguos que no guardaban comentarios.
+  // Se usa la caché cuando exista para evitar forzar una corrida innecesaria.
+  loadComments({ notify: true, force: false });
 };
 
 window.exportHistoryRecord = function(id) {
   const record = state.history.find(r => r.id === id);
   if (!record) return;
 
-  const rows = [
-    ["Campo", "Valor"],
-    ["ID", record.id],
-    ["Fecha", record.formattedDate],
-    ["Redes", record.platforms.join(", ")],
-    ["Total Comentarios", record.totalComments],
-    ["Positivos", record.positive],
-    ["Neutrales", record.neutral],
-    ["Negativos", record.negative],
-    ["Prompt", record.prompt],
-    ["Estado", record.dataSource],
-    ["URLs", JSON.stringify(record.urls)]
-  ];
+  const rows = [["Registro", "Tiempo de análisis", "Red social", "Usuario", "Comentario", "Publicación", "URL comentario", "URL publicación", "Sentimiento", "Confianza", "Fecha"]];
+  const comments = record.comments || [];
+  if (comments.length) {
+    comments.forEach(comment => rows.push([
+      record.formattedDate,
+      record.durationLabel || formatAnalysisDuration(record.durationSeconds),
+      platformLabel(comment.platform),
+      comment.authorName || comment.authorHandle || "",
+      comment.text || "",
+      comment.postTitle || "",
+      comment.commentUrl || "",
+      comment.postUrl || "",
+      comment.sentiment?.displayName || comment.sentiment?.label || "",
+      comment.sentiment?.confidence ?? "",
+      comment.publishedAt || ""
+    ]));
+  } else {
+    rows.push([record.formattedDate, record.durationLabel || "No disponible", record.platforms.map(platformLabel).join(" | "), "", "Registro antiguo sin comentarios detallados", "", "", "", "", "", ""]);
+  }
 
   const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
   downloadCsv(csv, `historial-sentia-${record.id}.csv`);
@@ -662,19 +747,38 @@ function exportFullHistoryLog() {
     return;
   }
 
-  const rows = [
-    ["Fecha", "Redes", "Total", "Positivos", "Neutrales", "Negativos", "Estado", "Prompt"],
-    ...state.history.map(item => [
+  const rows = [["Fecha", "Tiempo de análisis", "Red social", "Usuario", "Comentario", "Publicación", "URL comentario", "URL publicación", "Sentimiento", "Confianza", "Estado"]];
+  state.history.forEach(item => {
+    const comments = item.comments || [];
+    comments.forEach(comment => rows.push([
       item.formattedDate,
-      item.platforms.join(" | "),
-      item.totalComments,
-      item.positive,
-      item.neutral,
-      item.negative,
-      item.dataSource,
-      item.prompt
-    ])
-  ];
+      item.durationLabel || formatAnalysisDuration(item.durationSeconds),
+      platformLabel(comment.platform),
+      comment.authorName || comment.authorHandle || "",
+      comment.text || "",
+      comment.postTitle || "",
+      comment.commentUrl || "",
+      comment.postUrl || "",
+      comment.sentiment?.displayName || comment.sentiment?.label || "",
+      comment.sentiment?.confidence ?? "",
+      item.dataSource
+    ]));
+    if (!comments.length) {
+      rows.push([
+        item.formattedDate,
+        item.durationLabel || "No disponible",
+        item.platforms.map(platformLabel).join(" | "),
+        "",
+        "Registro antiguo sin comentarios detallados",
+        "",
+        "",
+        "",
+        `Total ${item.totalComments}; positivos ${item.positive}; neutrales ${item.neutral}; negativos ${item.negative}`,
+        "",
+        item.dataSource
+      ]);
+    }
+  });
 
   const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
   downloadCsv(csv, `historial-completo-sentia-${Date.now()}.csv`);
@@ -939,6 +1043,7 @@ function startAnalysisJob({ targetPlatform = "global", notify = false, force = f
     status: "running",
     startedAt: Date.now(),
     elapsedSeconds: 0,
+    currentPlatform: null,
     progressText: `Iniciando consulta de ${platformLabel(targetPlatform)}... 0s`,
     abortController: new AbortController(),
     timerId: null,
@@ -953,6 +1058,8 @@ function startAnalysisJob({ targetPlatform = "global", notify = false, force = f
       return;
     }
     job.elapsedSeconds = Math.round((Date.now() - job.startedAt) / 1000);
+    const activePlatform = job.currentPlatform || targetPlatform;
+    job.progressText = `Analizando ${platformLabel(activePlatform)}... ${job.elapsedSeconds}s`;
     renderJobBanners();
     updateNotch();
   }, 1000);
@@ -979,7 +1086,8 @@ async function executeJobAsync(job) {
         break;
       }
 
-      job.progressText = `Consultando ${platformLabel(item.platform)}... ${job.elapsedSeconds}s`;
+      job.currentPlatform = item.platform;
+      job.progressText = `Analizando ${platformLabel(item.platform)}... ${job.elapsedSeconds}s`;
       renderJobBanners();
       updateNotch();
 
@@ -1049,7 +1157,7 @@ async function executeJobAsync(job) {
       message: messages.join(" · ")
     };
 
-    saveHistoryRecord(job.results, job.assignedPlatforms, job.prompt);
+  saveHistoryRecord(job.results, job.assignedPlatforms, job.prompt, job.elapsedSeconds);
 
     // Discreet Completion Notification when user is on a DIFFERENT view:
     const isCurrentModuleView = (state.activeNav === job.platform) || (state.activeNav === "global" && job.platform === "global");
@@ -1192,12 +1300,6 @@ function initEventHandlers() {
   const analyzeBtn = document.getElementById("analyzeButton");
   if (analyzeBtn) {
     analyzeBtn.addEventListener("click", () => loadComments({ notify: true, force: false }));
-  }
-
-  // Refresh Header Button
-  const refreshBtn = document.getElementById("refreshButton");
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", () => loadComments({ notify: true, force: true }));
   }
 
   // Search & Filter Listeners for per-module and global tables
@@ -1407,7 +1509,9 @@ document.addEventListener("DOMContentLoaded", () => {
   loadSavedSources();
   loadHistory();
   refreshCredentialStatus();
-  
-  // Initial load
-  loadComments();
+
+  // La aplicación inicia en reposo. El análisis solo comienza cuando el
+  // usuario pulsa el botón de analizar de un módulo o el botón Actualizar.
+  renderActiveView();
+  updateNotch();
 });

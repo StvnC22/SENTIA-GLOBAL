@@ -190,6 +190,12 @@ html, body {
 .history-platform-row { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem .8rem; padding: .65rem .75rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-input); }
 .history-platform-row > strong { min-width: 82px; color: var(--text-primary); }
 
+.history-filters { display: flex; flex-wrap: wrap; align-items: end; gap: .8rem; padding: 1rem; margin-bottom: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-input); }
+.history-filters label { display: grid; gap: .3rem; min-width: 170px; }
+.history-filters label > span { color: var(--text-muted); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.history-filters .modern-select, .history-filters .modern-input { min-height: 38px; }
+.history-search-field { flex: 1 1 240px; }
+
 .sidebar-close-btn {
   display: none;
   background: transparent;

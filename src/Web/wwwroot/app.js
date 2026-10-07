@@ -42,6 +42,30 @@ const configuredMask = "••••••••••••••••";
 const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
 const initials = name => (name || "").split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase() || "?";
 const percent = (value, total) => total ? Math.round(value / total * 100) : 0;
+function percentageBreakdown(values, total) {
+  const labels = Object.keys(values);
+  if (!total) return Object.fromEntries(labels.map(label => [label, 0]));
+
+  const exact = labels.map(label => ({
+    label,
+    value: values[label] / total * 100
+  }));
+  const roundedDown = exact.map(item => ({ ...item, rounded: Math.floor(item.value) }));
+  let remaining = 100 - roundedDown.reduce((sum, item) => sum + item.rounded, 0);
+
+  // Método del resto mayor: asigna los puntos restantes a las fracciones más
+  // grandes y garantiza que la suma visible sea exactamente 100%.
+  roundedDown
+    .sort((left, right) => (right.value - Math.floor(right.value)) - (left.value - Math.floor(left.value)))
+    .forEach(item => {
+      if (remaining > 0) {
+        item.rounded += 1;
+        remaining -= 1;
+      }
+    });
+
+  return Object.fromEntries(roundedDown.map(item => [item.label, item.rounded]));
+}
 const formatDay = date => new Intl.DateTimeFormat("es-EC", { day: "2-digit", month: "short" }).format(date).replace(".", "");
 const formatTime = date => new Intl.DateTimeFormat("es-EC", { hour: "2-digit", minute: "2-digit" }).format(date);
 const platformLabel = platform => ({ instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", x: "X", global: "Todas las redes" }[platform] || platform);
@@ -51,8 +75,34 @@ const platformLabel = platform => ({ instagram: "Instagram", facebook: "Facebook
 function normalizePlatform(platform) {
   const value = String(platform ?? "").trim().toLocaleLowerCase("en");
   if (value === "all") return "global";
-  if (value === "twitter" || value === "twitter.com" || value === "x.com" || value === "x-twitter") return "x";
+  if (
+    value === "twitter"
+    || value === "twitter.com"
+    || value === "x.com"
+    || value === "x-twitter"
+    || value === "x (twitter)"
+    || value.includes("twitter")
+  ) return "x";
+  if (value === "x" || value === "x social") return "x";
+  if (value.includes("instagram")) return "instagram";
+  if (value.includes("facebook")) return "facebook";
+  if (value.includes("tiktok") || value === "tik tok") return "tiktok";
   return value;
+}
+
+function commentIdentity(comment) {
+  const platform = normalizePlatform(comment.platform);
+  const id = String(comment.id || comment.commentId || "").trim();
+  if (id) return `${platform}|id:${id}`;
+  return `${platform}|${comment.commentUrl || ""}|${comment.postUrl || ""}|${comment.authorHandle || comment.authorName || ""}|${comment.text || ""}`.toLocaleLowerCase("es");
+}
+
+function deduplicateComments(comments) {
+  const unique = new Map();
+  for (const comment of comments || []) {
+    unique.set(commentIdentity(comment), comment);
+  }
+  return [...unique.values()];
 }
 
 /* ========================================== */
@@ -212,6 +262,7 @@ function filterComments(platformFilter = "global", sentimentFilter = "all", sear
 /* VIEW RENDERING FUNCTIONS                   */
 /* ========================================== */
 function renderActiveView() {
+  state.comments = deduplicateComments(state.comments);
   renderMetrics();
   renderSidebarCounts();
   renderJobBanners();
@@ -230,17 +281,20 @@ function renderActiveView() {
 function renderSidebarCounts() {
   const periodComments = commentsInPeriod();
   for (const platform of ["instagram", "facebook", "tiktok", "x"]) {
-    const count = periodComments.filter(c => normalizePlatform(c.platform) === platform).length;
+    const count = state.comments.filter(c => normalizePlatform(c.platform) === platform).length;
     document.querySelectorAll(`[data-sidebar-count="${platform}"]`).forEach(el => el.textContent = count);
   }
-  document.querySelectorAll('[data-sidebar-count="global"]').forEach(el => el.textContent = periodComments.length);
+  document.querySelectorAll('[data-sidebar-count="global"]').forEach(el => el.textContent = periodComments.length || state.comments.length);
   
   const historyBadge = document.getElementById("historyBadge");
   if (historyBadge) historyBadge.textContent = state.history.length;
 }
 
 function renderMetrics() {
-  const periodComments = commentsInPeriod();
+  // Los contadores principales representan lo que está cargado en la sesión.
+  // El período sigue utilizándose para gráficos, pero no debe ocultar una red
+  // recién analizada por una fecha antigua o con formato distinto.
+  const periodComments = state.comments;
   const summary = {
     total: periodComments.length,
     positive: periodComments.filter(comment => comment.sentiment.label === "positive").length,
@@ -252,10 +306,14 @@ function renderMetrics() {
   const setElemText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   setElemText("dashTotalMetric", summary.total);
   setElemText("totalMetric", summary.total);
+  const percentages = percentageBreakdown(
+    { positive: summary.positive, neutral: summary.neutral, negative: summary.negative },
+    summary.total
+  );
   
   for (const label of ["positive", "neutral", "negative"]) {
     const value = summary[label];
-    const ratio = percent(value, summary.total);
+    const ratio = percentages[label];
     
     setElemText(`dash${label.charAt(0).toUpperCase() + label.slice(1)}Metric`, value);
     setElemText(`dash${label.charAt(0).toUpperCase() + label.slice(1)}Percent`, `${ratio}% del total`);
@@ -269,7 +327,7 @@ function renderMetrics() {
 }
 
 function renderDashboard() {
-  const periodComments = commentsInPeriod();
+  const periodComments = state.comments;
 
   // Render Network Distribution Bars
   const counts = { instagram: 0, facebook: 0, tiktok: 0, x: 0 };
@@ -318,8 +376,18 @@ function renderNetworkModule(platform) {
   const sentimentFilter = sentimentSelect ? sentimentSelect.value : "all";
   const sortFilter = sortSelect ? sortSelect.value : "newest";
 
-  const comments = filterComments(platform, sentimentFilter, searchQuery, sortFilter);
-  const allPlatformComments = commentsInPeriod().filter(c => normalizePlatform(c.platform) === platform);
+  const allPlatformComments = state.comments.filter(c => normalizePlatform(c.platform) === platform);
+  // El módulo de cada red muestra la misma consulta completa que el historial
+  // y el Dashboard; el período temporal solo afecta los gráficos globales.
+  const comments = allPlatformComments
+    .filter(item => sentimentFilter === "all" || item.sentiment.label === sentimentFilter)
+    .filter(item => !searchQuery.trim() || `${item.authorName} ${item.authorHandle} ${item.text} ${item.postTitle}`.toLocaleLowerCase("es").includes(searchQuery.trim().toLocaleLowerCase("es")))
+    .sort((left, right) => {
+      if (sortFilter === "oldest") return new Date(left.publishedAt) - new Date(right.publishedAt);
+      if (sortFilter === "post") return left.postTitle.localeCompare(right.postTitle, "es");
+      if (sortFilter === "sentiment") return left.sentiment.displayName.localeCompare(right.sentiment.displayName, "es");
+      return new Date(right.publishedAt) - new Date(left.publishedAt);
+    });
 
   // Network Metrics
   const setElemText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -349,7 +417,7 @@ function renderNetworkModule(platform) {
     }
   }
 
-  renderSemanticCloud(`${platform}SemanticCloud`, `${platform}CloudMeta`, platform);
+  renderSemanticCloud(`${platform}SemanticCloud`, `${platform}CloudMeta`, platform, true);
 }
 
 function renderGlobalView() {
@@ -396,12 +464,14 @@ function renderCommentRow(comment, showNetworkBadge = true) {
 /* ========================================== */
 const semanticStopWords = new Set("a al algo alguna algunas alguno algunos ante antes como con contra cual cuando de del desde donde dos el ella ellas ellos en entre era es esa esas ese eso esos esta estas este esto estos fue ha hay la las le les lo los más me mi mis mucho muy no nos o para pero por que se sin sobre su sus también te un una uno unos y ya yo".split(" "));
 
-function renderSemanticCloud(containerId, metaId, platformFilter = "global") {
+function renderSemanticCloud(containerId, metaId, platformFilter = "global", includeOutsidePeriod = false) {
   const container = document.getElementById(containerId);
   const meta = document.getElementById(metaId);
   if (!container) return;
 
-  const comments = commentsInPeriod().filter(c => platformFilter === "global" || platformFilter === "all" || c.platform === platformFilter);
+  const sourceComments = includeOutsidePeriod ? state.comments : commentsInPeriod();
+  const normalizedFilter = normalizePlatform(platformFilter);
+  const comments = sourceComments.filter(c => normalizedFilter === "global" || normalizedFilter === "all" || normalizePlatform(c.platform) === normalizedFilter);
   const counts = new Map();
 
   for (const comment of comments) {
@@ -474,7 +544,18 @@ function renderCalendar(containerId, metaId) {
 function loadHistory() {
   try {
     const raw = localStorage.getItem("sentia-history-v1");
-    if (raw) state.history = JSON.parse(raw);
+    if (raw) {
+      const records = JSON.parse(raw);
+      state.history = records.map(record => {
+        const platforms = (record.platforms || []).map(normalizePlatform);
+        const urls = Object.fromEntries(
+          Object.entries(record.urls || {})
+            .map(([platform, url]) => [normalizePlatform(platform), url])
+            .filter(([platform]) => platforms.includes(platform))
+        );
+        return { ...record, platforms, urls };
+      });
+    }
   } catch (e) {
     state.history = [];
   }
@@ -500,8 +581,12 @@ function saveHistoryRecord(dashboard, assignedPlatforms, promptText, durationSec
     id: "hist_" + Date.now(),
     timestamp: new Date().toISOString(),
     formattedDate: new Intl.DateTimeFormat("es-EC", { dateStyle: "short", timeStyle: "medium" }).format(new Date()),
-    platforms: assignedPlatforms.map(item => item.platform),
-    urls: { ...state.sources },
+    platforms: assignedPlatforms.map(item => normalizePlatform(item.platform)),
+    // Guardar solo las fuentes que participaron en esta ejecución. No usar
+    // state.sources completo porque puede contener URLs antiguas de otras redes.
+    urls: Object.fromEntries(
+      assignedPlatforms.map(item => [normalizePlatform(item.platform), item.url])
+    ),
     prompt: promptText || "",
     durationSeconds: Math.max(0, Number(durationSeconds) || 0),
     durationLabel: formatAnalysisDuration(durationSeconds),
@@ -546,7 +631,19 @@ function renderHistoryTable() {
 
   if (emptyEl) emptyEl.hidden = true;
 
-  bodyEl.innerHTML = state.history.map(item => {
+  const platformFilter = document.getElementById("historyPlatformFilter")?.value || "all";
+  const sortFilter = document.getElementById("historySortFilter")?.value || "newest";
+  const searchTerm = (document.getElementById("historySearchInput")?.value || "").trim().toLocaleLowerCase("es");
+  const filteredHistory = state.history
+    .filter(item => platformFilter === "all" || (item.platforms || []).map(normalizePlatform).includes(platformFilter))
+    .filter(item => !searchTerm || `${item.formattedDate} ${(item.platforms || []).join(" ")} ${item.dataSource} ${item.prompt || ""}`.toLocaleLowerCase("es").includes(searchTerm))
+    .sort((left, right) => {
+      const leftTime = new Date(left.timestamp || 0).getTime();
+      const rightTime = new Date(right.timestamp || 0).getTime();
+      return sortFilter === "oldest" ? leftTime - rightTime : rightTime - leftTime;
+    });
+
+  bodyEl.innerHTML = filteredHistory.map(item => {
     const netBadges = item.platforms.map(p => `<span class="history-net-pill ${escapeHtml(p)}">${escapeHtml(p)}</span>`).join("");
     const statusClass = item.dataSource === "live" ? "live" : "demo";
     const statusText = item.dataSource === "live" ? "Real (API)" : "Demostrativo";
@@ -575,6 +672,13 @@ function renderHistoryTable() {
       </td>
     </tr>`;
   }).join("");
+  if (emptyEl) {
+    emptyEl.hidden = filteredHistory.length > 0;
+    if (!filteredHistory.length && state.history.length) {
+      emptyEl.querySelector("h3")?.replaceChildren(document.createTextNode("Sin coincidencias"));
+      emptyEl.querySelector("p")?.replaceChildren(document.createTextNode("Prueba con otra red social o cambia el criterio de búsqueda."));
+    }
+  }
 }
 
 window.openHistoryDetail = function(id) {
@@ -673,10 +777,10 @@ window.reloadHistoryQuery = function(id) {
     );
     // Reactivar Instagram no debe borrar Facebook, TikTok ni X. Solo se
     // reemplaza la plataforma incluida en el registro que se está cargando.
-    state.comments = [
+    state.comments = deduplicateComments([
       ...state.comments.filter(comment => !restoredPlatforms.has(normalizePlatform(comment.platform))),
       ...restoredComments
-    ];
+    ]);
     state.dataSource = record.dataSource || "live";
     state.summary = null;
     navigateTo(record.platforms.length === 1 ? record.platforms[0] : "global");
@@ -1034,6 +1138,12 @@ function startAnalysisJob({ targetPlatform = "global", notify = false, force = f
     return null;
   }
 
+  // Una nueva ejecución representa el estado actual de esas redes. Eliminar
+  // sus resultados anteriores evita que el Dashboard mezcle, por ejemplo,
+  // 7 comentarios nuevos de TikTok con 14 de una consulta previa.
+  const platformsBeingAnalyzed = new Set(assignedPlatforms.map(item => normalizePlatform(item.platform)));
+  state.comments = state.comments.filter(comment => !platformsBeingAnalyzed.has(normalizePlatform(comment.platform)));
+
   const job = {
     id: `job_${targetPlatform}_${Date.now()}`,
     platform: targetPlatform,
@@ -1116,7 +1226,7 @@ async function executeJobAsync(job) {
         if (dashboard.dataSource === "live" && platformComments.length) anyLive = true;
         if (dashboard.message) messages.push(`${platformLabel(item.platform)}: ${dashboard.message}`);
 
-        state.comments = mergedComments;
+        state.comments = deduplicateComments(mergedComments);
         state.summary = null;
         state.dataSource = anyLive ? "live" : (dashboard.dataSource || "demo");
 
@@ -1343,6 +1453,12 @@ function initEventHandlers() {
 
   const exportHistoryLogBtn = document.getElementById("exportHistoryLogBtn");
   if (exportHistoryLogBtn) exportHistoryLogBtn.addEventListener("click", exportFullHistoryLog);
+
+  ["historyPlatformFilter", "historySortFilter", "historySearchInput"].forEach(id => {
+    const filter = document.getElementById(id);
+    if (filter) filter.addEventListener("input", renderHistoryTable);
+    if (filter && filter.tagName === "SELECT") filter.addEventListener("change", renderHistoryTable);
+  });
 
   // Close History Modal
   const closeHistoryModalBtn = document.getElementById("closeHistoryModalBtn");

@@ -1,0 +1,1217 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Sentia Global · Centro Inteligente de Monitoreo y Análisis de Sentimiento en Redes Sociales">
+  <title>Sentia Global · Centro de Monitoreo de Sentimientos</title>
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=sentia-20261005-v1">
+</head>
+<body class="app-body">
+  <!-- App Shell Layout -->
+  <div class="app-layout">
+    
+    <!-- Floating Sidebar Navigation -->
+    <aside class="app-sidebar" id="appSidebar">
+      <div class="sidebar-header">
+        <a class="brand-link" href="#" data-nav="dashboard" title="Sentia Global">
+          <div class="brand-logo">
+            <span>S</span>
+          </div>
+          <div class="brand-text">
+            <strong>Sentia Global</strong>
+            <small>Data Intelligence v2.5</small>
+          </div>
+        </a>
+        <button class="sidebar-collapse-btn" id="sidebarCollapseToggle" type="button" aria-label="Colapsar menú lateral" title="Colapsar menú lateral" aria-expanded="true">
+          <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <button class="sidebar-close-btn" id="sidebarCloseBtn" type="button" aria-label="Cerrar menú">
+          <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">MONITOREO & ANÁLISIS</div>
+        
+        <button class="nav-item active" data-nav="dashboard" type="button" title="Dashboard Principal">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+          </span>
+          <span class="nav-label">Dashboard Principal</span>
+        </button>
+
+        <div class="nav-section-title">MÓDULOS DE REDES SOCIALES</div>
+
+        <button class="nav-item" data-nav="instagram" type="button" title="Instagram">
+          <span class="nav-icon network-badge-icon instagram">
+            <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+          </span>
+          <span class="nav-label">Instagram</span>
+          <span class="nav-count" data-sidebar-count="instagram">0</span>
+        </button>
+
+        <button class="nav-item" data-nav="facebook" type="button" title="Facebook">
+          <span class="nav-icon network-badge-icon facebook">
+            <svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+          </span>
+          <span class="nav-label">Facebook</span>
+          <span class="nav-count" data-sidebar-count="facebook">0</span>
+        </button>
+
+        <button class="nav-item" data-nav="tiktok" type="button" title="TikTok">
+          <span class="nav-icon network-badge-icon tiktok">
+            <svg viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
+          </span>
+          <span class="nav-label">TikTok</span>
+          <span class="nav-count" data-sidebar-count="tiktok">0</span>
+        </button>
+
+        <button class="nav-item" data-nav="x" type="button" title="X (Twitter)">
+          <span class="nav-icon network-badge-icon x">
+            <svg viewBox="0 0 24 24"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg>
+          </span>
+          <span class="nav-label">X (Twitter)</span>
+          <span class="nav-count" data-sidebar-count="x">0</span>
+        </button>
+
+        <div class="nav-section-title">GESTIÓN & HISTORIAL</div>
+
+        <button class="nav-item" data-nav="history" type="button" title="Historial">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </span>
+          <span class="nav-label">Historial</span>
+          <span class="history-badge" id="historyBadge">0</span>
+        </button>
+
+        <button class="nav-item" data-nav="settings" type="button" title="Configuración">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </span>
+          <span class="nav-label">Configuración</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="api-status-widget">
+          <div class="status-row">
+            <span class="status-indicator-dot" id="apifySidebarDot"></span>
+            <span class="status-label">Apify:</span>
+            <span class="status-value" id="apifySidebarText">Verificando...</span>
+          </div>
+          <div class="status-row">
+            <span class="status-indicator-dot" id="geminiSidebarDot"></span>
+            <span class="status-label">Gemini IA:</span>
+            <span class="status-value" id="geminiSidebarText">Verificando...</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- Main Workspace Container -->
+    <div class="app-main-wrapper">
+      
+      <!-- Top Dynamic Header & Floating Island Notch -->
+      <header class="app-top-header">
+        <div class="header-left">
+          <button class="mobile-menu-btn" id="mobileMenuBtn" type="button" aria-label="Abrir navegación">
+            <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+
+          <!-- DYNAMIC ISLAND / FLOATING NOTCH -->
+          <div class="dynamic-notch" id="dynamicNotch" title="Centro de estado de Sentia Global">
+            <div class="notch-content">
+              <div class="notch-pulse-dot" id="notchPulseDot"></div>
+              <span class="notch-title" id="notchTitle">Dashboard Principal</span>
+              <span class="notch-divider">•</span>
+              <span class="notch-status" id="notchStatus">Sistema Activo</span>
+              <div class="notch-badge" id="notchBadge">0 coms</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <!-- Theme Switcher -->
+          <div class="theme-switcher-group" aria-label="Selector de tema visual">
+            <button class="theme-btn active" data-theme-val="dark" type="button" title="Modo Oscuro">
+              <svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+            <button class="theme-btn" data-theme-val="light" type="button" title="Modo Claro">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </button>
+          </div>
+
+          <button class="action-pill-btn" id="refreshButton" type="button" title="Actualizar datos (Fuerza nueva extracción)">
+            <svg class="spin-icon" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            <span>Actualizar</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- MAIN CONTENT VIEW CANVAS -->
+      <main class="main-content" id="mainContent">
+
+        <!-- ========================================== -->
+        <!-- VIEW 1: DASHBOARD PRINCIPAL                -->
+        <!-- ========================================== -->
+        <section class="view-panel active" id="view-dashboard">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-badge">VISIÓN EXECUTIVE & GLOBAL</span>
+              <h1 class="page-title">Centro de Monitoreo de Sentimientos</h1>
+              <p class="page-description">Resumen consolidado de escucha social inteligente en tiempo real.</p>
+            </div>
+            
+            <div class="period-control" aria-label="Periodo de análisis">
+              <span>Periodo:</span>
+              <div class="fluent-select period-select" data-select="periodDays">
+                <button class="select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="periodOptionsDashboard">
+                  <span data-select-label>1 año</span><svg viewBox="0 0 20 20"><path d="m6 8 4 4 4-4"/></svg>
+                </button>
+                <div class="select-popover" id="periodOptionsDashboard" role="listbox" hidden>
+                  <div class="select-option" role="option" tabindex="-1" data-value="7"><span>Últimos 7 días</span><b aria-hidden="true">✓</b></div>
+                  <div class="select-option" role="option" tabindex="-1" data-value="30"><span>1 mes</span><b aria-hidden="true">✓</b></div>
+                  <div class="select-option" role="option" tabindex="-1" data-value="183"><span>6 meses</span><b aria-hidden="true">✓</b></div>
+                  <div class="select-option" role="option" tabindex="-1" data-value="400" aria-selected="true"><span>1 año</span><b aria-hidden="true">✓</b></div>
+                  <div class="select-option" role="option" tabindex="-1" data-value="0"><span>Todo el historial</span><b aria-hidden="true">✓</b></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top Metric Cards Grid -->
+          <div class="metric-grid">
+            <article class="metric-card glass total">
+              <div class="metric-header">
+                <span class="metric-title">Total Comentarios</span>
+                <span class="metric-icon-bubble">◎</span>
+              </div>
+              <div class="metric-body">
+                <strong class="metric-value" id="dashTotalMetric">—</strong>
+                <small class="metric-subtext">Comentarios analizados</small>
+              </div>
+            </article>
+
+            <article class="metric-card glass positive">
+              <div class="metric-header">
+                <span class="metric-title">Positivos</span>
+                <span class="metric-icon-bubble">↗</span>
+              </div>
+              <div class="metric-body">
+                <strong class="metric-value" id="dashPositiveMetric">—</strong>
+                <small class="metric-subtext" id="dashPositivePercent">— del total</small>
+              </div>
+              <div class="metric-progress-bar">
+                <div class="progress-fill positive" id="dashPositiveBar" style="width: 0%"></div>
+              </div>
+            </article>
+
+            <article class="metric-card glass neutral">
+              <div class="metric-header">
+                <span class="metric-title">Neutrales</span>
+                <span class="metric-icon-bubble">―</span>
+              </div>
+              <div class="metric-body">
+                <strong class="metric-value" id="dashNeutralMetric">—</strong>
+                <small class="metric-subtext" id="dashNeutralPercent">— del total</small>
+              </div>
+              <div class="metric-progress-bar">
+                <div class="progress-fill neutral" id="dashNeutralBar" style="width: 0%"></div>
+              </div>
+            </article>
+
+            <article class="metric-card glass negative">
+              <div class="metric-header">
+                <span class="metric-title">Negativos</span>
+                <span class="metric-icon-bubble">↘</span>
+              </div>
+              <div class="metric-body">
+                <strong class="metric-value" id="dashNegativeMetric">—</strong>
+                <small class="metric-subtext" id="dashNegativePercent">— del total</small>
+              </div>
+              <div class="metric-progress-bar">
+                <div class="progress-fill negative" id="dashNegativeBar" style="width: 0%"></div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Main Dashboard Split Layout -->
+          <div class="dashboard-split-grid">
+            <!-- Left Column: Distribution & Highlights -->
+            <div class="dashboard-left-col">
+              
+              <!-- Network Distribution Card -->
+              <div class="glass-card">
+                <div class="card-header">
+                  <h3>Distribución por Red Social</h3>
+                  <span class="card-tag">Volumen</span>
+                </div>
+                <div class="network-distribution-bars" id="networkDistributionBars">
+                  <div class="net-bar-item">
+                    <div class="net-bar-info">
+                      <span class="net-bar-label instagram">Instagram</span>
+                      <strong class="net-bar-val" id="dashCountInstagram">0</strong>
+                    </div>
+                    <div class="net-bar-track"><div class="net-bar-fill instagram" id="dashBarInstagram" style="width:0%"></div></div>
+                  </div>
+                  <div class="net-bar-item">
+                    <div class="net-bar-info">
+                      <span class="net-bar-label facebook">Facebook</span>
+                      <strong class="net-bar-val" id="dashCountFacebook">0</strong>
+                    </div>
+                    <div class="net-bar-track"><div class="net-bar-fill facebook" id="dashBarFacebook" style="width:0%"></div></div>
+                  </div>
+                  <div class="net-bar-item">
+                    <div class="net-bar-info">
+                      <span class="net-bar-label tiktok">TikTok</span>
+                      <strong class="net-bar-val" id="dashCountTiktok">0</strong>
+                    </div>
+                    <div class="net-bar-track"><div class="net-bar-fill tiktok" id="dashBarTiktok" style="width:0%"></div></div>
+                  </div>
+                  <div class="net-bar-item">
+                    <div class="net-bar-info">
+                      <span class="net-bar-label x">X (Twitter)</span>
+                      <strong class="net-bar-val" id="dashCountX">0</strong>
+                    </div>
+                    <div class="net-bar-track"><div class="net-bar-fill x" id="dashBarX" style="width:0%"></div></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Top Network & Analysis Status Summary -->
+              <div class="dashboard-status-row">
+                <div class="glass-card feature-card">
+                  <span class="feature-icon">🏆</span>
+                  <div>
+                    <span class="feature-label">Red con más comentarios</span>
+                    <strong class="feature-value" id="dashTopNetwork">Sin datos</strong>
+                  </div>
+                </div>
+
+                <div class="glass-card feature-card">
+                  <span class="feature-icon">⏱️</span>
+                  <div>
+                    <span class="feature-label">Último análisis ejecutado</span>
+                    <strong class="feature-value" id="dashLastAnalysis">Nunca</strong>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Services Health Grid -->
+              <div class="glass-card">
+                <div class="card-header">
+                  <h3>Estado de los Servicios de Extracción & IA</h3>
+                </div>
+                <div class="services-health-list">
+                  <div class="service-health-item">
+                    <div class="service-name">
+                      <span class="service-icon">🕷️</span>
+                      <div>
+                        <strong>Apify Scraping Engine</strong>
+                        <small>Extracción de perfiles y publicaciones</small>
+                      </div>
+                    </div>
+                    <span class="health-badge" id="apifyHealthBadge">Verificando</span>
+                  </div>
+
+                  <div class="service-health-item">
+                    <div class="service-name">
+                      <span class="service-icon">✦</span>
+                      <div>
+                        <strong>Gemini AI Sentiment Classifier</strong>
+                        <small>Modelado de lenguaje de última generación</small>
+                      </div>
+                    </div>
+                    <span class="health-badge" id="geminiHealthBadge">Verificando</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Column: Quick Shortcuts Grid -->
+            <div class="dashboard-right-col">
+              <div class="glass-card">
+                <div class="card-header">
+                  <h3>Accesos Rápida por Módulo</h3>
+                  <span class="card-tag">Navegación</span>
+                </div>
+                <div class="shortcuts-grid">
+                  
+                  <button class="shortcut-card instagram" data-nav="instagram" type="button">
+                    <div class="shortcut-header">
+                      <span class="shortcut-icon"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></span>
+                      <strong>Instagram</strong>
+                    </div>
+                    <p>Módulo exclusivo para perfiles y posts de Instagram.</p>
+                    <span class="shortcut-action">Abrir módulo →</span>
+                  </button>
+
+                  <button class="shortcut-card facebook" data-nav="facebook" type="button">
+                    <div class="shortcut-header">
+                      <span class="shortcut-icon"><svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></span>
+                      <strong>Facebook</strong>
+                    </div>
+                    <p>Módulo para páginas y publicaciones de Facebook.</p>
+                    <span class="shortcut-action">Abrir módulo →</span>
+                  </button>
+
+                  <button class="shortcut-card tiktok" data-nav="tiktok" type="button">
+                    <div class="shortcut-header">
+                      <span class="shortcut-icon"><svg viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg></span>
+                      <strong>TikTok</strong>
+                    </div>
+                    <p>Módulo para perfiles y videos concretos de TikTok.</p>
+                    <span class="shortcut-action">Abrir módulo →</span>
+                  </button>
+
+                  <button class="shortcut-card x" data-nav="x" type="button">
+                    <div class="shortcut-header">
+                      <span class="shortcut-icon"><svg viewBox="0 0 24 24"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg></span>
+                      <strong>X (Twitter)</strong>
+                    </div>
+                    <p>Módulo para posts, hilos y perfiles de X.</p>
+                    <span class="shortcut-action">Abrir módulo →</span>
+                  </button>
+
+                  <button class="shortcut-card history" data-nav="history" type="button">
+                    <div class="shortcut-header">
+                      <span class="shortcut-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                      <strong>Historial</strong>
+                    </div>
+                    <p>Consulta registros y reabre análisis anteriores.</p>
+                    <span class="shortcut-action">Abrir módulo →</span>
+                  </button>
+
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Visual Insights: Global Cloud -->
+          <div class="insights-grid single-insight">
+            <div class="glass-card">
+              <div class="card-header">
+                <div>
+                  <span class="insight-kicker">Inteligencia Lingüística</span>
+                  <h3>Nube Semántica Global</h3>
+                </div>
+                <span class="card-tag" id="dashCloudMeta">0 términos</span>
+              </div>
+              <div class="semantic-cloud" id="dashSemanticCloud">
+                <span class="insight-empty">Analiza un tema para ver las palabras clave más relevantes.</span>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- VIEW 2: MÓDULO INSTAGRAM                   -->
+        <!-- ========================================== -->
+        <section class="view-panel" id="view-instagram">
+          <div class="panel-header">
+            <div class="header-network-title">
+              <span class="network-big-icon instagram">
+                <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+              </span>
+              <div>
+                <h1 class="page-title">Módulo de Instagram</h1>
+                <p class="page-description">Análisis exclusivo para perfiles y publicaciones de Instagram.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Source Input & Options Box -->
+          <div class="glass-card search-config-card">
+            <div class="source-input-group">
+              <label for="instagramSourceInput" class="input-label">URL de Instagram (Perfil o Publicación)</label>
+              <div class="url-input-wrapper">
+                <input id="instagramSourceInput" type="url" class="modern-input" placeholder="https://www.instagram.com/marca o https://www.instagram.com/p/CODE/">
+                <button class="primary-button analyze-single-btn" data-platform="instagram" type="button">
+                  <span>Analizar Instagram</span>
+                </button>
+              </div>
+              <small class="source-error" id="instagramSourceError" hidden></small>
+            </div>
+
+            <div class="prompt-input-group">
+              <label for="instagramPromptInput" class="input-label">Prompt personalizado para Instagram (opcional)</label>
+              <textarea id="instagramPromptInput" class="modern-textarea" rows="2" placeholder="Ejemplo: Clasifica como negativo si se quejan del envío o del servicio al cliente."></textarea>
+            </div>
+
+            <div class="job-progress-banner" id="instagramJobBanner" hidden>
+              <div class="job-progress-info">
+                <span class="job-spinner-dot"></span>
+                <span class="job-progress-text" id="instagramJobProgressText">Consultando Instagram... 0s</span>
+              </div>
+              <button class="cancel-job-button" data-cancel-platform="instagram" type="button" title="Cancelar análisis actual">
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>Cancelar análisis</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Metrics Row -->
+          <div class="metric-grid minified">
+            <article class="metric-card glass total"><div class="metric-body"><span>Analizados</span><strong id="instagramMetricTotal">0</strong></div></article>
+            <article class="metric-card glass positive"><div class="metric-body"><span>Positivos</span><strong id="instagramMetricPositive">0</strong></div></article>
+            <article class="metric-card glass neutral"><div class="metric-body"><span>Neutrales</span><strong id="instagramMetricNeutral">0</strong></div></article>
+            <article class="metric-card glass negative"><div class="metric-body"><span>Negativos</span><strong id="instagramMetricNegative">0</strong></div></article>
+          </div>
+
+          <!-- Comments Workspace -->
+          <div class="glass-card workspace-card">
+            <div class="workspace-toolbar">
+              <div class="toolbar-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                <input class="table-search-input" data-platform="instagram" type="search" placeholder="Buscar por usuario o texto...">
+              </div>
+
+              <div class="toolbar-filters">
+                <select class="modern-select sentiment-filter-select" data-platform="instagram">
+                  <option value="all">Todas las emociones</option>
+                  <option value="positive">Positivos</option>
+                  <option value="neutral">Neutrales</option>
+                  <option value="negative">Negativos</option>
+                </select>
+
+                <select class="modern-select sort-filter-select" data-platform="instagram">
+                  <option value="newest">Más recientes</option>
+                  <option value="oldest">Más antiguos</option>
+                  <option value="post">Por publicación</option>
+                  <option value="sentiment">Por emoción</option>
+                </select>
+
+                <button class="export-button" data-platform="instagram" type="button">
+                  <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg> Exportar CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="comments-table">
+                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
+                <tbody id="instagramCommentsBody"></tbody>
+              </table>
+              <div class="empty-state" id="instagramEmptyState" hidden>
+                <span>⌕</span>
+                <h3>No hay comentarios de Instagram</h3>
+                <p>Ingresa una URL válida y pulsa "Analizar Instagram".</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Semantic Cloud -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>Nube Semántica de Instagram</h3>
+              <span class="card-tag" id="instagramCloudMeta">0 términos</span>
+            </div>
+            <div class="semantic-cloud" id="instagramSemanticCloud"></div>
+          </div>
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- VIEW 3: MÓDULO FACEBOOK                    -->
+        <!-- ========================================== -->
+        <section class="view-panel" id="view-facebook">
+          <div class="panel-header">
+            <div class="header-network-title">
+              <span class="network-big-icon facebook">
+                <svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+              </span>
+              <div>
+                <h1 class="page-title">Módulo de Facebook</h1>
+                <p class="page-description">Análisis independiente para páginas y publicaciones de Facebook.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Source Input Box -->
+          <div class="glass-card search-config-card">
+            <div class="source-input-group">
+              <label for="facebookSourceInput" class="input-label">URL de Facebook (Página o Publicación)</label>
+              <div class="url-input-wrapper">
+                <input id="facebookSourceInput" type="url" class="modern-input" placeholder="https://www.facebook.com/pagina o profile.php?id=123">
+                <button class="primary-button analyze-single-btn" data-platform="facebook" type="button">
+                  <span>Analizar Facebook</span>
+                </button>
+              </div>
+              <small class="source-error" id="facebookSourceError" hidden></small>
+            </div>
+
+            <div class="prompt-input-group">
+              <label for="facebookPromptInput" class="input-label">Prompt personalizado para Facebook (opcional)</label>
+              <textarea id="facebookPromptInput" class="modern-textarea" rows="2" placeholder="Personaliza la evaluación para los comentarios de Facebook."></textarea>
+            </div>
+
+            <div class="job-progress-banner" id="facebookJobBanner" hidden>
+              <div class="job-progress-info">
+                <span class="job-spinner-dot"></span>
+                <span class="job-progress-text" id="facebookJobProgressText">Consultando Facebook... 0s</span>
+              </div>
+              <button class="cancel-job-button" data-cancel-platform="facebook" type="button" title="Cancelar análisis actual">
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>Cancelar análisis</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Metrics Row -->
+          <div class="metric-grid minified">
+            <article class="metric-card glass total"><div class="metric-body"><span>Analizados</span><strong id="facebookMetricTotal">0</strong></div></article>
+            <article class="metric-card glass positive"><div class="metric-body"><span>Positivos</span><strong id="facebookMetricPositive">0</strong></div></article>
+            <article class="metric-card glass neutral"><div class="metric-body"><span>Neutrales</span><strong id="facebookMetricNeutral">0</strong></div></article>
+            <article class="metric-card glass negative"><div class="metric-body"><span>Negativos</span><strong id="facebookMetricNegative">0</strong></div></article>
+          </div>
+
+          <!-- Workspace -->
+          <div class="glass-card workspace-card">
+            <div class="workspace-toolbar">
+              <div class="toolbar-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                <input class="table-search-input" data-platform="facebook" type="search" placeholder="Buscar comentarios...">
+              </div>
+
+              <div class="toolbar-filters">
+                <select class="modern-select sentiment-filter-select" data-platform="facebook">
+                  <option value="all">Todas las emociones</option>
+                  <option value="positive">Positivos</option>
+                  <option value="neutral">Neutrales</option>
+                  <option value="negative">Negativos</option>
+                </select>
+
+                <select class="modern-select sort-filter-select" data-platform="facebook">
+                  <option value="newest">Más recientes</option>
+                  <option value="oldest">Más antiguos</option>
+                  <option value="post">Por publicación</option>
+                  <option value="sentiment">Por emoción</option>
+                </select>
+
+                <button class="export-button" data-platform="facebook" type="button">
+                  <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg> Exportar CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="comments-table">
+                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
+                <tbody id="facebookCommentsBody"></tbody>
+              </table>
+              <div class="empty-state" id="facebookEmptyState" hidden>
+                <span>⌕</span>
+                <h3>No hay comentarios de Facebook</h3>
+                <p>Ingresa una URL de Facebook para comenzar.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Semantic Cloud -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>Nube Semántica de Facebook</h3>
+              <span class="card-tag" id="facebookCloudMeta">0 términos</span>
+            </div>
+            <div class="semantic-cloud" id="facebookSemanticCloud"></div>
+          </div>
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- VIEW 4: MÓDULO TIKTOK                      -->
+        <!-- ========================================== -->
+        <section class="view-panel" id="view-tiktok">
+          <div class="panel-header">
+            <div class="header-network-title">
+              <span class="network-big-icon tiktok">
+                <svg viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
+              </span>
+              <div>
+                <h1 class="page-title">Módulo de TikTok</h1>
+                <p class="page-description">Extracción de perfiles y videos concretos en TikTok.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Source Input Box -->
+          <div class="glass-card search-config-card">
+            <div class="source-input-group">
+              <label for="tiktokSourceInput" class="input-label">URL de TikTok (Perfil o Video /video/123)</label>
+              <div class="url-input-wrapper">
+                <input id="tiktokSourceInput" type="url" class="modern-input" placeholder="https://www.tiktok.com/@cuenta/video/123456789">
+                <button class="primary-button analyze-single-btn" data-platform="tiktok" type="button">
+                  <span>Analizar TikTok</span>
+                </button>
+              </div>
+              <small class="source-error" id="tiktokSourceError" hidden></small>
+            </div>
+
+            <div class="prompt-input-group">
+              <label for="tiktokPromptInput" class="input-label">Prompt personalizado para TikTok (opcional)</label>
+              <textarea id="tiktokPromptInput" class="modern-textarea" rows="2" placeholder="Criterio específico para evaluar comentarios de TikTok."></textarea>
+            </div>
+
+            <div class="job-progress-banner" id="tiktokJobBanner" hidden>
+              <div class="job-progress-info">
+                <span class="job-spinner-dot"></span>
+                <span class="job-progress-text" id="tiktokJobProgressText">Consultando TikTok... 0s</span>
+              </div>
+              <button class="cancel-job-button" data-cancel-platform="tiktok" type="button" title="Cancelar análisis actual">
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>Cancelar análisis</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Metrics Row -->
+          <div class="metric-grid minified">
+            <article class="metric-card glass total"><div class="metric-body"><span>Analizados</span><strong id="tiktokMetricTotal">0</strong></div></article>
+            <article class="metric-card glass positive"><div class="metric-body"><span>Positivos</span><strong id="tiktokMetricPositive">0</strong></div></article>
+            <article class="metric-card glass neutral"><div class="metric-body"><span>Neutrales</span><strong id="tiktokMetricNeutral">0</strong></div></article>
+            <article class="metric-card glass negative"><div class="metric-body"><span>Negativos</span><strong id="tiktokMetricNegative">0</strong></div></article>
+          </div>
+
+          <!-- Workspace -->
+          <div class="glass-card workspace-card">
+            <div class="workspace-toolbar">
+              <div class="toolbar-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                <input class="table-search-input" data-platform="tiktok" type="search" placeholder="Buscar en TikTok...">
+              </div>
+
+              <div class="toolbar-filters">
+                <select class="modern-select sentiment-filter-select" data-platform="tiktok">
+                  <option value="all">Todas las emociones</option>
+                  <option value="positive">Positivos</option>
+                  <option value="neutral">Neutrales</option>
+                  <option value="negative">Negativos</option>
+                </select>
+
+                <select class="modern-select sort-filter-select" data-platform="tiktok">
+                  <option value="newest">Más recientes</option>
+                  <option value="oldest">Más antiguos</option>
+                  <option value="post">Por publicación</option>
+                  <option value="sentiment">Por emoción</option>
+                </select>
+
+                <button class="export-button" data-platform="tiktok" type="button">
+                  <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg> Exportar CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="comments-table">
+                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
+                <tbody id="tiktokCommentsBody"></tbody>
+              </table>
+              <div class="empty-state" id="tiktokEmptyState" hidden>
+                <span>⌕</span>
+                <h3>No hay comentarios de TikTok</h3>
+                <p>Ingresa una URL de TikTok para comenzar.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Semantic Cloud -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>Nube Semántica de TikTok</h3>
+              <span class="card-tag" id="tiktokCloudMeta">0 términos</span>
+            </div>
+            <div class="semantic-cloud" id="tiktokSemanticCloud"></div>
+          </div>
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- VIEW 5: MÓDULO X (TWITTER)                 -->
+        <!-- ========================================== -->
+        <section class="view-panel" id="view-x">
+          <div class="panel-header">
+            <div class="header-network-title">
+              <span class="network-big-icon x">
+                <svg viewBox="0 0 24 24"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg>
+              </span>
+              <div>
+                <h1 class="page-title">Módulo de X (Twitter)</h1>
+                <p class="page-description">Análisis de conversaciones, respuestas y publicaciones en X.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Source Input Box -->
+          <div class="glass-card search-config-card">
+            <div class="source-input-group">
+              <label for="xSourceInput" class="input-label">URL de X (Perfil o Post /status/123)</label>
+              <div class="url-input-wrapper">
+                <input id="xSourceInput" type="url" class="modern-input" placeholder="https://x.com/cuenta/status/123456789">
+                <button class="primary-button analyze-single-btn" data-platform="x" type="button">
+                  <span>Analizar X</span>
+                </button>
+              </div>
+              <small class="source-error" id="xSourceError" hidden></small>
+            </div>
+
+            <div class="prompt-input-group">
+              <label for="xPromptInput" class="input-label">Prompt personalizado para X (opcional)</label>
+              <textarea id="xPromptInput" class="modern-textarea" rows="2" placeholder="Personaliza la clasificación de sentimientos para la red X."></textarea>
+            </div>
+
+            <div class="job-progress-banner" id="xJobBanner" hidden>
+              <div class="job-progress-info">
+                <span class="job-spinner-dot"></span>
+                <span class="job-progress-text" id="xJobProgressText">Consultando X... 0s</span>
+              </div>
+              <button class="cancel-job-button" data-cancel-platform="x" type="button" title="Cancelar análisis actual">
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>Cancelar análisis</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Metrics Row -->
+          <div class="metric-grid minified">
+            <article class="metric-card glass total"><div class="metric-body"><span>Analizados</span><strong id="xMetricTotal">0</strong></div></article>
+            <article class="metric-card glass positive"><div class="metric-body"><span>Positivos</span><strong id="xMetricPositive">0</strong></div></article>
+            <article class="metric-card glass neutral"><div class="metric-body"><span>Neutrales</span><strong id="xMetricNeutral">0</strong></div></article>
+            <article class="metric-card glass negative"><div class="metric-body"><span>Negativos</span><strong id="xMetricNegative">0</strong></div></article>
+          </div>
+
+          <!-- Workspace -->
+          <div class="glass-card workspace-card">
+            <div class="workspace-toolbar">
+              <div class="toolbar-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                <input class="table-search-input" data-platform="x" type="search" placeholder="Buscar en X...">
+              </div>
+
+              <div class="toolbar-filters">
+                <select class="modern-select sentiment-filter-select" data-platform="x">
+                  <option value="all">Todas las emociones</option>
+                  <option value="positive">Positivos</option>
+                  <option value="neutral">Neutrales</option>
+                  <option value="negative">Negativos</option>
+                </select>
+
+                <select class="modern-select sort-filter-select" data-platform="x">
+                  <option value="newest">Más recientes</option>
+                  <option value="oldest">Más antiguos</option>
+                  <option value="post">Por publicación</option>
+                  <option value="sentiment">Por emoción</option>
+                </select>
+
+                <button class="export-button" data-platform="x" type="button">
+                  <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg> Exportar CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="comments-table">
+                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
+                <tbody id="xCommentsBody"></tbody>
+              </table>
+              <div class="empty-state" id="xEmptyState" hidden>
+                <span>⌕</span>
+                <h3>No hay comentarios de X</h3>
+                <p>Ingresa una URL de X para comenzar.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Semantic Cloud -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>Nube Semántica de X</h3>
+              <span class="card-tag" id="xCloudMeta">0 términos</span>
+            </div>
+            <div class="semantic-cloud" id="xSemanticCloud"></div>
+          </div>
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- VIEW 6: MÓDULO TODAS LAS REDES (GLOBAL)    -->
+        <!-- ========================================== -->
+        <!-- El antiguo módulo consolidado se conserva como plantilla histórica,
+             pero ya no se monta en la interfaz: cada red tiene su propio módulo. -->
+        <template id="view-global">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-badge">CONSOLIDADO MULTI-RED</span>
+              <h1 class="page-title">Todas las Redes Sociales</h1>
+              <p class="page-description">Monitoreo cruzado unificado de Instagram, Facebook, TikTok y X.</p>
+            </div>
+          </div>
+
+          <!-- Global Multi-Source Inputs Form -->
+          <div class="glass-card search-config-card">
+            <div class="card-header">
+              <h3>Fuentes Verificables por Red</h3>
+              <span class="card-tag">Multi-URL</span>
+            </div>
+            
+            <div class="sources-inputs-grid">
+              <div class="source-field-box">
+                <label for="globalInstagramInput" class="source-label">
+                  <span class="net-icon instagram"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></span>
+                  Instagram
+                </label>
+                <input id="globalInstagramInput" type="url" class="modern-input" placeholder="https://instagram.com/marca">
+                <small class="source-error" id="globalInstagramError" hidden></small>
+              </div>
+
+              <div class="source-field-box">
+                <label for="globalFacebookInput" class="source-label">
+                  <span class="net-icon facebook"><svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></span>
+                  Facebook
+                </label>
+                <input id="globalFacebookInput" type="url" class="modern-input" placeholder="https://facebook.com/pagina">
+                <small class="source-error" id="globalFacebookError" hidden></small>
+              </div>
+
+              <div class="source-field-box">
+                <label for="globalTiktokInput" class="source-label">
+                  <span class="net-icon tiktok"><svg viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg></span>
+                  TikTok
+                </label>
+                <input id="globalTiktokInput" type="url" class="modern-input" placeholder="https://tiktok.com/@cuenta/video/123">
+                <small class="source-error" id="globalTiktokError" hidden></small>
+              </div>
+
+              <div class="source-field-box">
+                <label for="globalXInput" class="source-label">
+                  <span class="net-icon x"><svg viewBox="0 0 24 24"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg></span>
+                  X (Twitter)
+                </label>
+                <input id="globalXInput" type="url" class="modern-input" placeholder="https://x.com/cuenta/status/123">
+                <small class="source-error" id="globalXError" hidden></small>
+              </div>
+            </div>
+
+            <div class="global-actions-row">
+              <div class="prompt-wrapper">
+                <label for="promptInput" class="input-label">Prompt personalizado global (opcional)</label>
+                <textarea id="promptInput" class="modern-textarea" rows="2" placeholder="Deja vacío para aplicar el criterio recomendado de Sentia Global."></textarea>
+              </div>
+
+              <div class="analyze-btn-container">
+                <button class="primary-button analyze-button" id="analyzeButton" type="button">
+                  <span>Analizar Todas las Redes</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="job-progress-banner" id="globalJobBanner" hidden>
+              <div class="job-progress-info">
+                <span class="job-spinner-dot"></span>
+                <span class="job-progress-text" id="globalJobProgressText">Consultando todas las redes... 0s</span>
+              </div>
+              <button class="cancel-job-button" data-cancel-platform="global" type="button" title="Cancelar análisis actual">
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>Cancelar análisis</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Global Metrics Cards -->
+          <div class="metric-grid">
+            <article class="metric-card glass total">
+              <div class="metric-header"><span class="metric-title">Total Global</span><span class="metric-icon-bubble">◎</span></div>
+              <div class="metric-body"><strong class="metric-value" id="totalMetric">—</strong><small class="metric-subtext">Comentarios unificados</small></div>
+            </article>
+            <article class="metric-card glass positive">
+              <div class="metric-header"><span class="metric-title">Positivos</span><span class="metric-icon-bubble">↗</span></div>
+              <div class="metric-body"><strong class="metric-value" id="positiveMetric">—</strong><small class="metric-subtext" id="positivePercent">— del total</small></div>
+            </article>
+            <article class="metric-card glass neutral">
+              <div class="metric-header"><span class="metric-title">Neutrales</span><span class="metric-icon-bubble">―</span></div>
+              <div class="metric-body"><strong class="metric-value" id="neutralMetric">—</strong><small class="metric-subtext" id="neutralPercent">— del total</small></div>
+            </article>
+            <article class="metric-card glass negative">
+              <div class="metric-header"><span class="metric-title">Negativos</span><span class="metric-icon-bubble">↘</span></div>
+              <div class="metric-body"><strong class="metric-value" id="negativeMetric">—</strong><small class="metric-subtext" id="negativePercent">— del total</small></div>
+            </article>
+          </div>
+
+          <!-- Global Workspace Table -->
+          <div class="glass-card workspace-card">
+            <div class="workspace-toolbar">
+              <div class="toolbar-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                <input id="searchInput" class="table-search-input" type="search" placeholder="Buscar por usuario o texto en todas las redes...">
+              </div>
+
+              <div class="toolbar-filters">
+                <!-- Filter platform -->
+                <select class="modern-select" id="globalPlatformSelect">
+                  <option value="all">Todas las redes</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="x">X (Twitter)</option>
+                </select>
+
+                <!-- Filter Sentiment -->
+                <div class="fluent-select" data-select="sentiment">
+                  <button class="select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="sentimentOptions">
+                    <span data-select-label>Todas las emociones</span><svg viewBox="0 0 20 20"><path d="m6 8 4 4 4-4"/></svg>
+                  </button>
+                  <div class="select-popover" id="sentimentOptions" role="listbox" hidden>
+                    <div class="select-option" role="option" tabindex="-1" data-value="all" aria-selected="true"><span>Todas las emociones</span><b aria-hidden="true">✓</b></div>
+                    <div class="select-option" role="option" tabindex="-1" data-value="positive"><span>Positivos</span><b aria-hidden="true">✓</b></div>
+                    <div class="select-option" role="option" tabindex="-1" data-value="neutral"><span>Neutrales</span><b aria-hidden="true">✓</b></div>
+                    <div class="select-option" role="option" tabindex="-1" data-value="negative"><span>Negativos</span><b aria-hidden="true">✓</b></div>
+                  </div>
+                </div>
+
+                <!-- Sort -->
+                <div class="fluent-select" data-select="sort">
+                  <button class="select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="sortOptions">
+                    <span data-select-label>Más recientes</span><svg viewBox="0 0 20 20"><path d="m6 8 4 4 4-4"/></svg>
+                  </button>
+                  <div class="select-popover align-right" id="sortOptions" role="listbox" hidden>
+                    <div class="select-option" role="option" tabindex="-1" data-value="newest" aria-selected="true"><span>Más recientes</span><b aria-hidden="true">✓</b></div>
+                    <div class="select-option" role="option" tabindex="-1" data-value="oldest"><span>Más antiguos</span><b aria-hidden="true">✓</b></div>
+                    <div class="select-option" role="option" tabindex="-1" data-value="post"><span>Por publicación</span><b aria-hidden="true">✓</b></div>
+                    <div class="select-option" role="option" tabindex="-1" data-value="sentiment"><span>Por emoción</span><b aria-hidden="true">✓</b></div>
+                  </div>
+                </div>
+
+                <button class="export-button" id="exportButton" type="button">
+                  <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg> Exportar CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="comments-table">
+                <thead><tr><th>Red</th><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
+                <tbody id="commentsBody"></tbody>
+              </table>
+              <div class="empty-state" id="emptyState" hidden>
+                <span>⌕</span>
+                <h3>No encontramos comentarios</h3>
+                <p>Prueba otra búsqueda o cambia los filtros seleccionados.</p>
+              </div>
+            </div>
+            
+            <footer class="table-footer">
+              <span id="footerCount">Mostrando 0 comentarios</span>
+              <span class="ai-note" id="dataSourceNote"><i>✦</i> Clasificación automática de sentimiento</span>
+            </footer>
+          </div>
+
+          <!-- Global Semantic Cloud & Calendar -->
+          <div class="insights-grid single-insight">
+            <div class="glass-card">
+              <div class="card-header">
+                <div><span class="insight-kicker">Palabras Frecuentes</span><h3>Nube Semántica Global</h3></div>
+                <span class="card-tag" id="cloudMeta">0 términos</span>
+              </div>
+              <div class="semantic-cloud" id="semanticCloud"></div>
+            </div>
+
+          </div>
+        </template>
+
+
+        <!-- ========================================== -->
+        <!-- VIEW 7: MÓDULO HISTORIAL                   -->
+        <!-- ========================================== -->
+        <section class="view-panel" id="view-history">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-badge">ALMACENAMIENTO LOCAL SEGURO</span>
+              <h1 class="page-title">Historial de Análisis</h1>
+              <p class="page-description">Registro histórico de las ejecuciones realizadas en este dispositivo.</p>
+            </div>
+            
+            <div class="history-global-actions">
+              <button class="secondary-button" id="exportHistoryLogBtn" type="button">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Exportar Registro</span>
+              </button>
+              <button class="danger-button" id="clearHistoryBtn" type="button">
+                <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span>Limpiar Historial</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="table-responsive">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>Fecha y Hora</th>
+                    <th>Redes Analizadas</th>
+                    <th>Comentarios</th>
+                    <th>Desglose (Pos / Neu / Neg)</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="historyTableBody"></tbody>
+              </table>
+              <div class="empty-state" id="historyEmptyState" hidden>
+                <span>📜</span>
+                <h3>Historial vacío</h3>
+                <p>Las consultas que ejecutes en el sistema se guardarán automáticamente aquí.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- VIEW 8: MÓDULO CONFIGURACIÓN               -->
+        <!-- ========================================== -->
+        <section class="view-panel" id="view-settings">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-badge">SEGURIDAD & APIS</span>
+              <h1 class="page-title">Configuración de Credenciales</h1>
+              <p class="page-description">Conecta las API oficiales de Apify y el modelo de inteligencia artificial de Gemini.</p>
+            </div>
+          </div>
+
+          <div class="glass-card settings-card">
+            <div class="security-banner">
+              <svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+              <div>
+                <strong>Almacenamiento Local Protegido</strong>
+                <span>Las claves API se cifran y guardan únicamente en tu equipo. Las respuestas nunca exponen la clave completa.</span>
+              </div>
+            </div>
+
+            <form id="settingsPageApiKeysForm" class="settings-form">
+              <div class="credential-fields-grid">
+                
+                <div class="credential-field-card">
+                  <div class="cred-header">
+                    <span class="cred-net-icon instagram"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></span>
+                    <strong>Instagram Token</strong>
+                    <em class="key-status-badge" data-key-status="instagram">Sin configurar</em>
+                  </div>
+                  <input id="settingsInstagramApiKey" name="instagram" type="password" class="modern-input" autocomplete="off" placeholder="Token Apify o Instagram API">
+                </div>
+
+                <div class="credential-field-card">
+                  <div class="cred-header">
+                    <span class="cred-net-icon facebook"><svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></span>
+                    <strong>Facebook Token</strong>
+                    <em class="key-status-badge" data-key-status="facebook">Sin configurar</em>
+                  </div>
+                  <input id="settingsFacebookApiKey" name="facebook" type="password" class="modern-input" autocomplete="off" placeholder="Token Apify o Facebook Graph API">
+                </div>
+
+                <div class="credential-field-card">
+                  <div class="cred-header">
+                    <span class="cred-net-icon tiktok"><svg viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg></span>
+                    <strong>TikTok (Apify) Token</strong>
+                    <em class="key-status-badge" data-key-status="tikTok">Sin configurar</em>
+                  </div>
+                  <input id="settingsTiktokApiKey" name="tikTok" type="password" class="modern-input" autocomplete="off" placeholder="Token de Apify para TikTok Actor">
+                </div>
+
+                <div class="credential-field-card">
+                  <div class="cred-header">
+                    <span class="cred-net-icon x"><svg viewBox="0 0 24 24"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg></span>
+                    <strong>X (Apify) Token</strong>
+                    <em class="key-status-badge" data-key-status="x">Sin configurar</em>
+                  </div>
+                  <input id="settingsXApiKey" name="x" type="password" class="modern-input" autocomplete="off" placeholder="Token de Apify para X Actor">
+                </div>
+
+                <div class="credential-field-card wide">
+                  <div class="cred-header">
+                    <span class="cred-net-icon gemini">✦</span>
+                    <strong>Gemini AI API Key</strong>
+                    <em class="key-status-badge" data-key-status="artificialIntelligence">Sin configurar</em>
+                  </div>
+                  <input id="settingsAiApiKey" name="artificialIntelligence" type="password" class="modern-input" autocomplete="off" placeholder="API Key de Google Gemini (AIzaSy...)">
+                </div>
+
+              </div>
+
+              <p class="form-help-text">Puedes colocar el mismo token de Apify en cualquiera de los campos de red social; el sistema lo reutiliza para consultar las redes disponibles. Gemini clasifica emociones y, si la clave falla, se usa un analizador local en español.</p>
+
+              <div class="form-submit-row">
+                <button class="primary-button" id="settingsSaveApiKeysButton" type="submit">
+                  <span>Guardar Claves de Conexión</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- API KEYS DIALOG MODAL (PRESERVED) -->
+  <dialog class="credentials-dialog" id="apiKeysDialog" aria-labelledby="apiKeysTitle">
+    <form id="apiKeysForm">
+      <div class="dialog-header">
+        <div>
+          <span class="dialog-icon" aria-hidden="true">⌁</span>
+          <div><h2 id="apiKeysTitle">Claves de Conexión</h2><p>Conecta las API oficiales y el servicio de IA.</p></div>
+        </div>
+        <button class="dialog-close" id="closeApiKeysButton" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <div class="security-note">
+        <svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        <div><strong>Almacenamiento protegido</strong><span>Las claves se cifran en este equipo y no se exponen completas.</span></div>
+      </div>
+      <div class="credential-fields">
+        <label class="credential-field" for="instagramApiKey"><span><b>Instagram</b><em data-key-status="instagram">Sin configurar</em></span><input id="instagramApiKey" name="instagram" type="password" autocomplete="off" placeholder="Pegar token Apify o IG"></label>
+        <label class="credential-field" for="facebookApiKey"><span><b>Facebook</b><em data-key-status="facebook">Sin configurar</em></span><input id="facebookApiKey" name="facebook" type="password" autocomplete="off" placeholder="Pegar token Apify o FB"></label>
+        <label class="credential-field" for="tiktokApiKey"><span><b>TikTok (Apify)</b><em data-key-status="tikTok">Sin configurar</em></span><input id="tiktokApiKey" name="tikTok" type="password" autocomplete="off" placeholder="Token Apify para TikTok"></label>
+        <label class="credential-field" for="xApiKey"><span><b>X (Apify)</b><em data-key-status="x">Sin configurar</em></span><input id="xApiKey" name="x" type="password" autocomplete="off" placeholder="Token Apify para X"></label>
+        <label class="credential-field wide" for="aiApiKey"><span><b>Gemini (IA)</b><em data-key-status="artificialIntelligence">Sin configurar</em></span><input id="aiApiKey" name="artificialIntelligence" type="password" autocomplete="off" placeholder="Clave Gemini (AIza…)"></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary-button" id="cancelApiKeysButton" type="button">Cancelar</button>
+        <button class="primary-button" id="saveApiKeysButton" type="submit">Guardar claves</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- HISTORY SUMMARY MODAL -->
+  <dialog class="credentials-dialog history-modal" id="historyDetailDialog">
+    <div class="dialog-header">
+      <div>
+        <span class="dialog-icon" aria-hidden="true">📜</span>
+        <div><h2 id="historyModalTitle">Resumen de Análisis Guardado</h2><p id="historyModalSubtitle">Detalle de la ejecución seleccionada</p></div>
+      </div>
+      <button class="dialog-close" id="closeHistoryModalBtn" type="button" aria-label="Cerrar">×</button>
+    </div>
+    
+    <div class="history-modal-body" id="historyModalContent">
+      <!-- Dynamic details rendered here -->
+    </div>
+
+    <div class="dialog-actions">
+      <button class="secondary-button" id="historyModalCloseBtn" type="button">Cerrar</button>
+      <button class="primary-button" id="historyModalReloadBtn" type="button">Cargar esta consulta</button>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js?v=sentia-20261006-v3" defer></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AnalisisSentimiento.Domain</RootNamespace>
+    <AssemblyName>AnalisisSentimiento.Domain</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ardalis.SmartEnum" />
+    <PackageReference Include="MediatR.Contracts" />
+  </ItemGroup>
+</Project>

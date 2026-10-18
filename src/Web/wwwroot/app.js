@@ -2,10 +2,13 @@
    SENTIA GLOBAL - APPLICATION LOGIC & STATE (NET 10 / ASP.NET CORE)
    ========================================================================== */
 
+const ROLE_RANK = { Consulta: 1, Analyst: 2, Administrator: 3 };
+
 const state = {
   activeNav: "dashboard",
   comments: [],
   summary: null,
+  insights: null,
   platform: "global",
   prompt: "",
   query: "",
@@ -14,12 +17,179 @@ const state = {
   periodDays: 400,
   sources: { instagram: "", facebook: "", tiktok: "", x: "" },
   prompts: { instagram: "", facebook: "", tiktok: "", x: "", global: "" },
+  observatorio: {
+    topic: "ULEAM",
+    platform: "",
+    province: "Manabí",
+    canton: "",
+    parish: "",
+    fromDate: "",
+    toDate: ""
+  },
+  territory: null,
+  savedSearches: [],
+  monitors: [],
+  alerts: [],
+  activityLog: [],
+  lastNegativeRatio: null,
+  auth: {
+    accessToken: null,
+    refreshToken: null,
+    expiresAt: null,
+    profile: null
+  },
   credentialStatus: null,
   credentialMasks: {},
   jobs: {},
   history: [],
   theme: "dark"
 };
+
+function highestRoleRank(roles = []) {
+  return Math.max(0, ...roles.map(role => ROLE_RANK[role] || 0));
+}
+
+function hasMinRole(minRole) {
+  if (!minRole) return true;
+  return highestRoleRank(state.auth.profile?.roles || []) >= (ROLE_RANK[minRole] || 99);
+}
+
+function loadAuthSession() {
+  try {
+    const raw = localStorage.getItem("sentia-auth-v1");
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    state.auth.accessToken = saved.accessToken || null;
+    state.auth.refreshToken = saved.refreshToken || null;
+    state.auth.expiresAt = saved.expiresAt || null;
+  } catch (e) {
+    clearAuthSession();
+  }
+}
+
+function persistAuthSession() {
+  localStorage.setItem("sentia-auth-v1", JSON.stringify({
+    accessToken: state.auth.accessToken,
+    refreshToken: state.auth.refreshToken,
+    expiresAt: state.auth.expiresAt
+  }));
+}
+
+function clearAuthSession() {
+  state.auth = { accessToken: null, refreshToken: null, expiresAt: null, profile: null };
+  localStorage.removeItem("sentia-auth-v1");
+}
+
+async function apiFetch(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (state.auth.accessToken) {
+    headers.set("Authorization", `Bearer ${state.auth.accessToken}`);
+  }
+  if (options.body && !headers.has("Content-Type") && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  let response = await fetch(url, { ...options, headers });
+  if (response.status === 401 && state.auth.refreshToken) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      headers.set("Authorization", `Bearer ${state.auth.accessToken}`);
+      response = await fetch(url, { ...options, headers });
+    }
+  }
+  return response;
+}
+
+async function refreshAccessToken() {
+  try {
+    const response = await fetch("/api/Users/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: state.auth.refreshToken })
+    });
+    if (!response.ok) {
+      clearAuthSession();
+      return false;
+    }
+    const data = await response.json();
+    state.auth.accessToken = data.accessToken;
+    state.auth.refreshToken = data.refreshToken || state.auth.refreshToken;
+    state.auth.expiresAt = data.expiresIn
+      ? Date.now() + Number(data.expiresIn) * 1000
+      : state.auth.expiresAt;
+    persistAuthSession();
+    return true;
+  } catch (e) {
+    clearAuthSession();
+    return false;
+  }
+}
+
+async function loginWithPassword(email, password) {
+  const response = await fetch("/api/Users/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+  if (!response.ok) {
+    let message = "Credenciales incorrectas";
+    try {
+      const problem = await response.json();
+      message = problem.title || problem.detail || message;
+    } catch (e) {}
+    throw new Error(message);
+  }
+  const data = await response.json();
+  state.auth.accessToken = data.accessToken;
+  state.auth.refreshToken = data.refreshToken;
+  state.auth.expiresAt = data.expiresIn ? Date.now() + Number(data.expiresIn) * 1000 : null;
+  persistAuthSession();
+  await loadUserProfile();
+}
+
+async function loadUserProfile() {
+  const response = await apiFetch("/api/Users/me");
+  if (!response.ok) throw new Error("No se pudo cargar el perfil");
+  state.auth.profile = await response.json();
+  renderUserSession();
+  applyRolePermissions();
+}
+
+function renderUserSession() {
+  const widget = document.getElementById("userSessionWidget");
+  const nameEl = document.getElementById("userSessionName");
+  const roleEl = document.getElementById("userSessionRole");
+  if (!widget || !state.auth.profile) return;
+  widget.hidden = false;
+  if (nameEl) nameEl.textContent = state.auth.profile.userName || state.auth.profile.email || "Usuario";
+  const roles = state.auth.profile.roles || [];
+  const roleLabels = { Administrator: "Administrador", Analyst: "Analista", Consulta: "Consulta" };
+  if (roleEl) roleEl.textContent = roles.map(r => roleLabels[r] || r).join(" · ") || "Sin rol";
+}
+
+function applyRolePermissions() {
+  document.querySelectorAll("[data-role-min]").forEach(el => {
+    const allowed = hasMinRole(el.dataset.roleMin);
+    el.hidden = !allowed;
+    if ("disabled" in el) el.disabled = !allowed;
+  });
+}
+
+function showLoginGate(show) {
+  const gate = document.getElementById("loginGate");
+  const shell = document.getElementById("appShell");
+  if (gate) gate.hidden = !show;
+  if (shell) shell.hidden = show;
+}
+
+async function logoutSession() {
+  try {
+    await apiFetch("/api/Users/logout", { method: "POST", body: JSON.stringify({}) });
+  } catch (e) {}
+  clearAuthSession();
+  showLoginGate(true);
+  showToast("Sesión cerrada");
+}
 
 const credentialFields = {
   instagram: "instagramApiKey",
@@ -195,6 +365,7 @@ function updateNotch(statusText = null, isLoading = false) {
     x: "Módulo X (Twitter)",
     global: "Todas las redes",
     history: "Historial de Análisis",
+    monitors: "Monitoreos periódicos",
     settings: "Configuración y API Keys"
   };
 
@@ -275,6 +446,8 @@ function renderActiveView() {
     renderGlobalView();
   } else if (state.activeNav === "history") {
     renderHistoryTable();
+  } else if (state.activeNav === "monitors") {
+    refreshMonitorsPanel();
   }
 }
 
@@ -363,8 +536,136 @@ function renderDashboard() {
     }
   }
 
-  // Render Clouds & Calendars
   renderSemanticCloud("dashSemanticCloud", "dashCloudMeta");
+  renderTrendChart();
+  renderGeoRanking();
+  renderExecutiveSummary();
+  renderSavedSearches();
+}
+
+function renderExecutiveSummary() {
+  const el = document.getElementById("observatorioExecutiveSummary");
+  if (!el) return;
+  const text = state.insights?.executiveSummary
+    || (state.comments.length
+      ? `Se analizaron ${state.comments.length} opiniones en la sesión actual.`
+      : "Ejecute una búsqueda para generar el resumen ejecutivo automático.");
+  el.textContent = text;
+}
+
+function renderTrendChart() {
+  const container = document.getElementById("dashTrendChart");
+  const meta = document.getElementById("dashTrendMeta");
+  if (!container) return;
+
+  const points = state.insights?.temporalTrend?.length
+    ? state.insights.temporalTrend
+    : buildLocalTrend(commentsInPeriod());
+
+  if (!points.length) {
+    container.innerHTML = '<span class="insight-empty">Sin datos temporales aún.</span>';
+    if (meta) meta.textContent = "0 días";
+    return;
+  }
+
+  const max = Math.max(...points.map(p => p.total), 1);
+  container.innerHTML = points.map(point => {
+    const dateLabel = new Date(point.date).toLocaleDateString("es-EC", { day: "2-digit", month: "short" });
+    const height = Math.max(8, Math.round((point.total / max) * 100));
+    const negShare = point.total ? Math.round((point.negative / point.total) * 100) : 0;
+    return `<div class="trend-bar" title="${escapeHtml(dateLabel)}: ${point.total} (${point.positive}+ / ${point.neutral}= / ${point.negative}-)">
+      <div class="trend-stack" style="height:${height}%">
+        <span class="trend-seg positive" style="flex:${point.positive || 0.01}"></span>
+        <span class="trend-seg neutral" style="flex:${point.neutral || 0.01}"></span>
+        <span class="trend-seg negative" style="flex:${point.negative || 0.01}"></span>
+      </div>
+      <small>${escapeHtml(dateLabel)}</small>
+      <em>${point.total}</em>
+      <b class="trend-neg-hint">${negShare}% neg</b>
+    </div>`;
+  }).join("");
+  if (meta) meta.textContent = `${points.length} días`;
+}
+
+function buildLocalTrend(comments) {
+  const byDay = new Map();
+  comments.forEach(comment => {
+    const key = new Date(comment.publishedAt).toISOString().slice(0, 10);
+    const bucket = byDay.get(key) || { date: key, total: 0, positive: 0, neutral: 0, negative: 0 };
+    bucket.total += 1;
+    bucket[comment.sentiment?.label || "neutral"] = (bucket[comment.sentiment?.label || "neutral"] || 0) + 1;
+    byDay.set(key, bucket);
+  });
+  return [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function renderGeoRanking() {
+  const container = document.getElementById("dashGeoRanking");
+  const meta = document.getElementById("dashGeoMeta");
+  if (!container) return;
+
+  const ranking = state.insights?.geoRanking?.length
+    ? state.insights.geoRanking
+    : buildLocalGeoRanking(state.comments);
+
+  if (!ranking.length) {
+    container.innerHTML = '<span class="insight-empty">Sin ubicaciones detectadas.</span>';
+    if (meta) meta.textContent = "0 zonas";
+    return;
+  }
+
+  const max = Math.max(...ranking.map(r => r.mentions), 1);
+  container.innerHTML = ranking.map(row => {
+    const label = [row.province, row.canton, row.parish].filter(Boolean).join(" / ");
+    const width = Math.round((row.mentions / max) * 100);
+    return `<div class="geo-rank-row">
+      <div class="geo-rank-label"><strong>${escapeHtml(label)}</strong><span>${row.mentions} menciones</span></div>
+      <div class="geo-rank-track"><div class="geo-rank-fill" style="width:${width}%"></div></div>
+      <div class="geo-rank-sentiments">
+        <span class="sentiment positive">${row.positive}</span>
+        <span class="sentiment neutral">${row.neutral}</span>
+        <span class="sentiment negative">${row.negative}</span>
+      </div>
+    </div>`;
+  }).join("");
+  if (meta) meta.textContent = `${ranking.length} zonas`;
+}
+
+function buildLocalGeoRanking(comments) {
+  const map = new Map();
+  comments.forEach(comment => {
+    if (!comment.canton && !comment.province) return;
+    const key = `${comment.province || "Manabí"}|${comment.canton || ""}|${comment.parish || ""}`;
+    const row = map.get(key) || {
+      province: comment.province || "Manabí",
+      canton: comment.canton || null,
+      parish: comment.parish || null,
+      mentions: 0,
+      positive: 0,
+      neutral: 0,
+      negative: 0
+    };
+    row.mentions += 1;
+    row[comment.sentiment?.label || "neutral"] += 1;
+    map.set(key, row);
+  });
+  return [...map.values()].sort((a, b) => b.mentions - a.mentions).slice(0, 12);
+}
+
+function evaluateSentimentAlert(summary) {
+  const banner = document.getElementById("observatorioAlertBanner");
+  if (!banner || !summary || !summary.total) {
+    if (banner) banner.hidden = true;
+    return;
+  }
+  const ratio = summary.negative / summary.total;
+  if (state.lastNegativeRatio != null && ratio - state.lastNegativeRatio >= 0.15 && ratio >= 0.35) {
+    banner.hidden = false;
+    banner.textContent = `Alerta: el sentimiento negativo subió a ${Math.round(ratio * 100)}% (antes ${Math.round(state.lastNegativeRatio * 100)}%). Revise el territorio y el tema monitoreado.`;
+  } else {
+    banner.hidden = true;
+  }
+  state.lastNegativeRatio = ratio;
 }
 
 function renderNetworkModule(platform) {
@@ -449,10 +750,13 @@ function renderGlobalView() {
 function renderCommentRow(comment, showNetworkBadge = true) {
   const date = new Date(comment.publishedAt);
   const netBadge = showNetworkBadge ? `<td data-label="Red"><span class="history-net-pill ${escapeHtml(comment.platform)}">${escapeHtml(comment.platform)}</span></td>` : "";
+  const place = [comment.canton, comment.parish].filter(Boolean).join(" · ") || comment.province || "";
+  const placeHtml = place ? `<div class="comment-place">${escapeHtml(place)}</div>` : "";
+  const topics = (comment.topics || []).slice(0, 2).map(t => `<em class="topic-chip">${escapeHtml(t)}</em>`).join("");
   return `<tr>
     ${netBadge}
     <td data-label="Usuario"><a class="user-link" href="${escapeHtml(comment.authorUrl)}" target="_blank" rel="noopener noreferrer"><span class="user-avatar">${escapeHtml(initials(comment.authorName))}</span><span class="user-info"><strong>${escapeHtml(comment.authorName)}</strong><span>${escapeHtml(comment.authorHandle)}</span></span></a></td>
-    <td data-label="Comentario"><a class="comment-link" href="${escapeHtml(comment.commentUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(comment.text)}</a></td>
+    <td data-label="Comentario"><a class="comment-link" href="${escapeHtml(comment.commentUrl || comment.postUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(comment.text)}</a>${placeHtml}${topics}</td>
     <td data-label="Publicación"><a class="post-link" href="${escapeHtml(comment.postUrl)}" target="_blank" rel="noopener noreferrer"><span>${escapeHtml(comment.postTitle)}</span></a></td>
     <td data-label="Sentimiento"><span class="sentiment ${escapeHtml(comment.sentiment.label)}"><i></i>${escapeHtml(comment.sentiment.displayName)}</span><span class="confidence">${comment.sentiment.confidence}% confianza</span></td>
     <td class="date" data-label="Fecha"><strong>${escapeHtml(formatDay(date))}</strong><span>${escapeHtml(formatTime(date))}</span></td>
@@ -953,7 +1257,7 @@ function renderCredentialStatus(status) {
 
 async function refreshCredentialStatus() {
   try {
-    const response = await fetch("/api/api-credentials");
+    const response = await apiFetch("/api/api-credentials");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     renderCredentialStatus(await response.json());
   } catch (error) {
@@ -962,9 +1266,8 @@ async function refreshCredentialStatus() {
 }
 
 async function saveApiKeysPayload(payload) {
-  const response = await fetch("/api/api-credentials", {
+  const response = await apiFetch("/api/api-credentials", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
 
@@ -1042,22 +1345,371 @@ function isDirectPostUrl(platform, url) {
   return false;
 }
 
-async function fetchPlatformComments(item, { force, signal, prompt }) {
+function buildObservatorioQueryParams(extra = {}) {
   const query = new URLSearchParams();
-  query.set("platform", item.platform);
-  query.set(`${item.platform}Url`, item.url);
-  if (prompt) query.set("prompt", prompt);
+  const obs = state.observatorio;
+  if (obs.topic) query.set("topic", obs.topic);
+  if (obs.platform) query.set("platform", obs.platform);
+  if (obs.province) query.set("province", obs.province);
+  if (obs.canton) query.set("canton", obs.canton);
+  if (obs.parish) query.set("parish", obs.parish);
+  if (obs.fromDate) query.set("fromDate", `${obs.fromDate}T00:00:00-05:00`);
+  if (obs.toDate) query.set("toDate", `${obs.toDate}T23:59:59-05:00`);
+  if (state.prompt) query.set("prompt", state.prompt);
+  for (const [key, value] of Object.entries(extra)) {
+    if (value != null && value !== "") query.set(key, value);
+  }
+  return query;
+}
+
+async function fetchPlatformComments(item, { force, signal, prompt }) {
+  const query = buildObservatorioQueryParams({
+    platform: item.platform,
+    [`${item.platform}Url`]: item.url,
+    prompt: prompt || state.prompt || undefined
+  });
   if (force || isDirectPostUrl(item.platform, item.url)) {
     query.set("refresh", "true");
   }
 
-  let response = await fetch(`/api/social-comments?${query}`, { signal });
+  let response = await apiFetch(`/api/social-comments?${query}`, { signal });
   if (!response.ok) {
     let probText = `HTTP ${response.status}`;
     try { const prob = await response.json(); probText = prob.detail || prob.title || probText; } catch (e) {}
     throw new Error(probText);
   }
   return await response.json();
+}
+
+function syncObservatorioFromForm() {
+  state.observatorio.topic = document.getElementById("observatorioTopicInput")?.value?.trim() || "";
+  state.observatorio.platform = document.getElementById("observatorioPlatformSelect")?.value || "";
+  state.observatorio.province = document.getElementById("observatorioProvinceSelect")?.value || "";
+  state.observatorio.canton = document.getElementById("observatorioCantonSelect")?.value || "";
+  state.observatorio.parish = document.getElementById("observatorioParishSelect")?.value || "";
+  state.observatorio.fromDate = document.getElementById("observatorioFromDate")?.value || "";
+  state.observatorio.toDate = document.getElementById("observatorioToDate")?.value || "";
+}
+
+async function runObservatorioSearch({ notify = true } = {}) {
+  syncObservatorioFromForm();
+  updateNotch("Consultando Observatorio…", true);
+  try {
+    const query = buildObservatorioQueryParams({ refresh: "true" });
+    const response = await apiFetch(`/api/social-comments?${query}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const dashboard = await response.json();
+    state.comments = deduplicateComments((dashboard.comments || []).map(c => ({
+      ...c,
+      platform: normalizePlatform(c.platform)
+    })));
+    state.summary = dashboard.summary || null;
+    state.insights = dashboard.insights || null;
+    state.dataSource = dashboard.dataSource || "demo";
+    evaluateSentimentAlert(dashboard.summary);
+    renderActiveView();
+    updateNotch(dashboard.dataSource === "live" ? "Datos reales" : "Modo demostrativo");
+    if (notify) {
+      showToast(`${state.comments.length} opiniones · ${dashboard.dataSource === "live" ? "API" : "demo"}`);
+    }
+    if (dashboard.message) showToast(dashboard.message);
+  } catch (error) {
+    updateNotch("Error de consulta");
+    showToast(error.message || "No se pudo consultar el Observatorio");
+  }
+}
+
+async function exportObservatorio(format) {
+  syncObservatorioFromForm();
+  const query = buildObservatorioQueryParams({ format });
+  const url = `/api/social-comments/export?${query}`;
+  const response = await apiFetch(url);
+  if (!response.ok) {
+    showToast("No se pudo exportar");
+    return;
+  }
+  const blob = await response.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  if (format === "pdf") {
+    window.open(blobUrl, "_blank", "noopener");
+    showToast("Informe PDF abierto · use Imprimir / Guardar PDF");
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download = `sentia-observatorio.${format === "excel" ? "xls" : "csv"}`;
+  link.click();
+  URL.revokeObjectURL(blobUrl);
+  showToast(`Exportación ${format.toUpperCase()} lista`);
+}
+
+async function loadTerritoryCatalog() {
+  try {
+    const response = await apiFetch("/api/social-comments/territory");
+    if (!response.ok) return;
+    state.territory = await response.json();
+    populateTerritorySelects();
+  } catch (e) {
+    console.warn("No se pudo cargar el catálogo territorial", e);
+  }
+}
+
+async function scheduleCurrentMonitor() {
+  if (!hasMinRole("Analyst")) {
+    showToast("Solo Analista o Administrador pueden programar monitoreos");
+    return;
+  }
+  syncObservatorioFromForm();
+  if (!state.observatorio.topic) {
+    showToast("Escriba un tema antes de programar el monitoreo");
+    return;
+  }
+  const interval = Number(document.getElementById("observatorioIntervalInput")?.value || 60);
+  const name = `${state.observatorio.topic}${state.observatorio.canton ? " · " + state.observatorio.canton : ""}`;
+  const response = await apiFetch("/api/monitors", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      topic: state.observatorio.topic,
+      intervalMinutes: interval,
+      platform: state.observatorio.platform || null,
+      province: state.observatorio.province || null,
+      canton: state.observatorio.canton || null,
+      parish: state.observatorio.parish || null
+    })
+  });
+  if (!response.ok) {
+    showToast("No se pudo crear el monitoreo (verifique permisos)");
+    return;
+  }
+  showToast("Monitoreo periódico programado");
+  navigateTo("monitors");
+}
+
+async function refreshMonitorsPanel() {
+  if (!state.auth.accessToken) return;
+  try {
+    const [monitorsRes, alertsRes] = await Promise.all([
+      apiFetch("/api/monitors"),
+      apiFetch("/api/monitors/alerts")
+    ]);
+    if (monitorsRes.ok) state.monitors = await monitorsRes.json();
+    if (alertsRes.ok) state.alerts = await alertsRes.json();
+    if (hasMinRole("Analyst")) {
+      const activityRes = await apiFetch("/api/monitors/activity?take=30");
+      if (activityRes.ok) state.activityLog = await activityRes.json();
+    }
+    renderMonitorsPanel();
+  } catch (e) {
+    console.warn("No se pudo cargar monitoreos", e);
+  }
+}
+
+function renderMonitorsPanel() {
+  const body = document.getElementById("monitorsTableBody");
+  const empty = document.getElementById("monitorsEmptyState");
+  const countMeta = document.getElementById("monitorsCountMeta");
+  const alertsBadge = document.getElementById("alertsBadge");
+  const unread = (state.alerts || []).filter(a => !a.isRead).length;
+  if (alertsBadge) alertsBadge.textContent = unread;
+  if (countMeta) countMeta.textContent = `${state.monitors.length} activos/totales`;
+
+  if (body) {
+    body.innerHTML = (state.monitors || []).map(item => {
+      const last = item.lastRunAt ? new Date(item.lastRunAt).toLocaleString("es-EC") : "Nunca";
+      const next = item.nextRunAt ? new Date(item.nextRunAt).toLocaleString("es-EC") : "—";
+      const status = item.isActive ? "Activo" : "Pausado";
+      const canEdit = hasMinRole("Analyst");
+      return `<tr>
+        <td><strong>${escapeHtml(item.name)}</strong></td>
+        <td>${escapeHtml(item.topic)}</td>
+        <td>${item.intervalMinutes} min</td>
+        <td><small>${escapeHtml(last)}</small><br><small>${escapeHtml(next)}</small></td>
+        <td><span class="status-tag ${item.isActive ? "live" : "demo"}">${status}</span></td>
+        <td>${canEdit ? `
+          <button class="action-icon-btn" data-toggle-monitor="${item.id}" title="${item.isActive ? "Pausar" : "Activar"}">⏯</button>
+          <button class="action-icon-btn danger" data-delete-monitor="${item.id}" title="Eliminar">🗑</button>
+        ` : "—"}</td>
+      </tr>`;
+    }).join("");
+    body.querySelectorAll("[data-toggle-monitor]").forEach(btn => {
+      btn.addEventListener("click", () => toggleMonitor(Number(btn.dataset.toggleMonitor)));
+    });
+    body.querySelectorAll("[data-delete-monitor]").forEach(btn => {
+      btn.addEventListener("click", () => deleteMonitor(Number(btn.dataset.deleteMonitor)));
+    });
+  }
+  if (empty) empty.hidden = state.monitors.length > 0;
+
+  const alertsList = document.getElementById("alertsList");
+  const alertsMeta = document.getElementById("alertsCountMeta");
+  if (alertsMeta) alertsMeta.textContent = `${state.alerts.length}`;
+  if (alertsList) {
+    if (!state.alerts.length) {
+      alertsList.innerHTML = '<span class="insight-empty">No hay alertas recientes.</span>';
+    } else {
+      alertsList.innerHTML = state.alerts.map(alert => `
+        <article class="alert-item ${alert.isRead ? "read" : "unread"}">
+          <strong>${escapeHtml(alert.monitorName)}</strong>
+          <p>${escapeHtml(alert.message)}</p>
+          <small>${escapeHtml(new Date(alert.created).toLocaleString("es-EC"))}</small>
+          ${alert.isRead ? "" : `<button type="button" class="secondary-button" data-read-alert="${alert.id}">Marcar leída</button>`}
+        </article>`).join("");
+      alertsList.querySelectorAll("[data-read-alert]").forEach(btn => {
+        btn.addEventListener("click", () => markAlertRead(Number(btn.dataset.readAlert)));
+      });
+    }
+  }
+
+  const activityList = document.getElementById("activityLogList");
+  if (activityList && hasMinRole("Analyst")) {
+    if (!state.activityLog.length) {
+      activityList.innerHTML = '<span class="insight-empty">Sin actividad registrada.</span>';
+    } else {
+      activityList.innerHTML = state.activityLog.map(item => `
+        <div class="activity-row">
+          <strong>${escapeHtml(item.action)}</strong>
+          <span>${escapeHtml(item.detail || "")}</span>
+          <small>${escapeHtml(item.userName || "sistema")} · ${escapeHtml(new Date(item.occurredAt).toLocaleString("es-EC"))}</small>
+        </div>`).join("");
+    }
+  }
+}
+
+async function toggleMonitor(id) {
+  const item = state.monitors.find(m => m.id === id);
+  if (!item) return;
+  const response = await apiFetch(`/api/monitors/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      id: item.id,
+      name: item.name,
+      topic: item.topic,
+      intervalMinutes: item.intervalMinutes,
+      isActive: !item.isActive,
+      platform: item.platform,
+      province: item.province,
+      canton: item.canton,
+      parish: item.parish
+    })
+  });
+  if (!response.ok) {
+    showToast("No se pudo actualizar el monitoreo");
+    return;
+  }
+  await refreshMonitorsPanel();
+}
+
+async function deleteMonitor(id) {
+  if (!confirm("¿Eliminar este monitoreo periódico?")) return;
+  const response = await apiFetch(`/api/monitors/${id}`, { method: "DELETE" });
+  if (!response.ok) {
+    showToast("No se pudo eliminar");
+    return;
+  }
+  await refreshMonitorsPanel();
+}
+
+async function markAlertRead(id) {
+  await apiFetch(`/api/monitors/alerts/${id}/read`, { method: "POST" });
+  await refreshMonitorsPanel();
+}
+
+function populateTerritorySelects() {
+  const cantonSelect = document.getElementById("observatorioCantonSelect");
+  const parishSelect = document.getElementById("observatorioParishSelect");
+  if (!cantonSelect || !state.territory) return;
+
+  const previousCanton = state.observatorio.canton;
+  cantonSelect.innerHTML = '<option value="">Todos</option>' + (state.territory.cantons || [])
+    .map(c => `<option value="${escapeHtml(c.name)}" ${c.name === previousCanton ? "selected" : ""}>${escapeHtml(c.name)}</option>`)
+    .join("");
+  refreshParishOptions();
+}
+
+function refreshParishOptions() {
+  const parishSelect = document.getElementById("observatorioParishSelect");
+  if (!parishSelect || !state.territory) return;
+  const canton = document.getElementById("observatorioCantonSelect")?.value || "";
+  const cantons = state.territory.cantons || [];
+  const parishes = canton
+    ? (cantons.find(c => c.name === canton)?.parishes || [])
+    : [...new Set(cantons.flatMap(c => c.parishes || []))];
+  const previous = state.observatorio.parish;
+  parishSelect.innerHTML = '<option value="">Todas</option>' + parishes
+    .map(p => `<option value="${escapeHtml(p)}" ${p === previous ? "selected" : ""}>${escapeHtml(p)}</option>`)
+    .join("");
+}
+
+function loadSavedSearches() {
+  try {
+    state.savedSearches = JSON.parse(localStorage.getItem("sentia-saved-searches-v1") || "[]");
+  } catch (e) {
+    state.savedSearches = [];
+  }
+}
+
+function saveCurrentSearch() {
+  syncObservatorioFromForm();
+  if (!state.observatorio.topic) {
+    showToast("Escriba una consulta antes de guardarla");
+    return;
+  }
+  const record = {
+    id: `search_${Date.now()}`,
+    ...state.observatorio,
+    createdAt: new Date().toISOString()
+  };
+  state.savedSearches.unshift(record);
+  state.savedSearches = state.savedSearches.slice(0, 20);
+  localStorage.setItem("sentia-saved-searches-v1", JSON.stringify(state.savedSearches));
+  renderSavedSearches();
+  showToast("Búsqueda guardada");
+}
+
+function renderSavedSearches() {
+  const container = document.getElementById("savedSearchesList");
+  if (!container) return;
+  if (!state.savedSearches.length) {
+    container.hidden = true;
+    container.innerHTML = "";
+    return;
+  }
+  container.hidden = false;
+  container.innerHTML = `<strong>Búsquedas guardadas</strong>` + state.savedSearches.map(item => `
+    <button type="button" class="saved-search-chip" data-search-id="${escapeHtml(item.id)}">
+      ${escapeHtml(item.topic)}${item.canton ? ` · ${escapeHtml(item.canton)}` : ""}
+    </button>`).join("");
+  container.querySelectorAll("[data-search-id]").forEach(btn => {
+    btn.addEventListener("click", () => applySavedSearch(btn.dataset.searchId));
+  });
+}
+
+function applySavedSearch(id) {
+  const item = state.savedSearches.find(s => s.id === id);
+  if (!item) return;
+  state.observatorio = {
+    topic: item.topic || "",
+    platform: item.platform || "",
+    province: item.province || "Manabí",
+    canton: item.canton || "",
+    parish: item.parish || "",
+    fromDate: item.fromDate || "",
+    toDate: item.toDate || ""
+  };
+  const topicInput = document.getElementById("observatorioTopicInput");
+  if (topicInput) topicInput.value = state.observatorio.topic;
+  const platformSelect = document.getElementById("observatorioPlatformSelect");
+  if (platformSelect) platformSelect.value = state.observatorio.platform;
+  const provinceSelect = document.getElementById("observatorioProvinceSelect");
+  if (provinceSelect) provinceSelect.value = state.observatorio.province;
+  populateTerritorySelects();
+  const fromDate = document.getElementById("observatorioFromDate");
+  const toDate = document.getElementById("observatorioToDate");
+  if (fromDate) fromDate.value = state.observatorio.fromDate;
+  if (toDate) toDate.value = state.observatorio.toDate;
+  syncDatePickerDisplays();
+  runObservatorioSearch();
 }
 
 /* ========================================== */
@@ -1227,8 +1879,10 @@ async function executeJobAsync(job) {
         if (dashboard.message) messages.push(`${platformLabel(item.platform)}: ${dashboard.message}`);
 
         state.comments = deduplicateComments(mergedComments);
-        state.summary = null;
+        state.summary = dashboard.summary || null;
+        state.insights = dashboard.insights || state.insights;
         state.dataSource = anyLive ? "live" : (dashboard.dataSource || "demo");
+        evaluateSentimentAlert(dashboard.summary);
 
         renderActiveView();
 
@@ -1362,6 +2016,174 @@ function showToast(message) {
   showToast.timeout = window.setTimeout(() => toast.classList.remove("visible"), 2800);
 }
 
+/* ========================================== */
+/* DATE PICKER EN ESPAÑOL                    */
+/* ========================================== */
+const DATE_MONTHS_ES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+];
+const DATE_WEEKDAYS_ES = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"];
+
+function toIsoDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateEs(iso) {
+  if (!iso) return "";
+  const [year, month, day] = iso.split("-");
+  if (!year || !month || !day) return "";
+  return `${day}/${month}/${year}`;
+}
+
+function parseIsoDate(iso) {
+  if (!iso) return null;
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function setDatePickerValue(root, iso) {
+  const hidden = root.querySelector('input[type="hidden"]');
+  const label = root.querySelector(".date-picker-value");
+  if (hidden) hidden.value = iso || "";
+  if (label) {
+    if (iso) {
+      label.textContent = formatDateEs(iso);
+      label.removeAttribute("data-placeholder");
+    } else {
+      label.textContent = "DD/MM/AAAA";
+      label.setAttribute("data-placeholder", "true");
+    }
+  }
+}
+
+function renderDatePickerCalendar(root, viewDate) {
+  const popover = root.querySelector(".date-picker-popover");
+  const hidden = root.querySelector('input[type="hidden"]');
+  if (!popover) return;
+
+  const selected = parseIsoDate(hidden?.value || "");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startOffset = (firstDay.getDay() + 6) % 7; // lunes = 0
+  const gridStart = new Date(year, month, 1 - startOffset);
+
+  const days = [];
+  for (let i = 0; i < 42; i += 1) {
+    const cell = new Date(gridStart);
+    cell.setDate(gridStart.getDate() + i);
+    const iso = toIsoDate(cell);
+    const isOutside = cell.getMonth() !== month;
+    const isToday = toIsoDate(cell) === toIsoDate(today);
+    const isSelected = selected && toIsoDate(cell) === toIsoDate(selected);
+    days.push(`<button type="button" class="date-picker-day${isOutside ? " outside" : ""}${isToday ? " today" : ""}${isSelected ? " selected" : ""}" data-date="${iso}">${cell.getDate()}</button>`);
+  }
+
+  popover.innerHTML = `
+    <div class="date-picker-header">
+      <button type="button" class="date-picker-nav" data-nav="-1" aria-label="Mes anterior">‹</button>
+      <strong>${DATE_MONTHS_ES[month]} ${year}</strong>
+      <button type="button" class="date-picker-nav" data-nav="1" aria-label="Mes siguiente">›</button>
+    </div>
+    <div class="date-picker-weekdays">${DATE_WEEKDAYS_ES.map(d => `<span>${d}</span>`).join("")}</div>
+    <div class="date-picker-grid">${days.join("")}</div>
+    <div class="date-picker-footer">
+      <button type="button" data-action="clear">Borrar</button>
+      <button type="button" data-action="today">Hoy</button>
+    </div>
+  `;
+
+  popover.querySelectorAll("[data-nav]").forEach(btn => {
+    btn.addEventListener("click", event => {
+      event.stopPropagation();
+      const next = new Date(year, month + Number(btn.dataset.nav), 1);
+      root._viewDate = next;
+      renderDatePickerCalendar(root, next);
+    });
+  });
+
+  popover.querySelectorAll("[data-date]").forEach(btn => {
+    btn.addEventListener("click", event => {
+      event.stopPropagation();
+      setDatePickerValue(root, btn.dataset.date);
+      closeDatePicker(root);
+    });
+  });
+
+  popover.querySelector('[data-action="clear"]')?.addEventListener("click", event => {
+    event.stopPropagation();
+    setDatePickerValue(root, "");
+    closeDatePicker(root);
+  });
+
+  popover.querySelector('[data-action="today"]')?.addEventListener("click", event => {
+    event.stopPropagation();
+    const iso = toIsoDate(today);
+    setDatePickerValue(root, iso);
+    root._viewDate = new Date(today.getFullYear(), today.getMonth(), 1);
+    closeDatePicker(root);
+  });
+}
+
+function closeDatePicker(root) {
+  const popover = root.querySelector(".date-picker-popover");
+  const trigger = root.querySelector(".date-picker-trigger");
+  if (popover) popover.hidden = true;
+  if (trigger) trigger.setAttribute("aria-expanded", "false");
+}
+
+function openDatePicker(root) {
+  document.querySelectorAll(".date-picker").forEach(other => {
+    if (other !== root) closeDatePicker(other);
+  });
+  const hidden = root.querySelector('input[type="hidden"]');
+  const selected = parseIsoDate(hidden?.value || "");
+  const base = selected || new Date();
+  root._viewDate = new Date(base.getFullYear(), base.getMonth(), 1);
+  renderDatePickerCalendar(root, root._viewDate);
+  const popover = root.querySelector(".date-picker-popover");
+  const trigger = root.querySelector(".date-picker-trigger");
+  if (popover) popover.hidden = false;
+  if (trigger) trigger.setAttribute("aria-expanded", "true");
+}
+
+function initSpanishDatePickers() {
+  document.querySelectorAll(".date-picker").forEach(root => {
+    const hidden = root.querySelector('input[type="hidden"]');
+    if (hidden?.value) setDatePickerValue(root, hidden.value);
+    const trigger = root.querySelector(".date-picker-trigger");
+    if (!trigger) return;
+    trigger.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const popover = root.querySelector(".date-picker-popover");
+      if (popover && !popover.hidden) closeDatePicker(root);
+      else openDatePicker(root);
+    });
+  });
+
+  document.addEventListener("click", event => {
+    if (!event.target.closest(".date-picker")) {
+      document.querySelectorAll(".date-picker").forEach(closeDatePicker);
+    }
+  });
+}
+
+function syncDatePickerDisplays() {
+  document.querySelectorAll(".date-picker").forEach(root => {
+    const hidden = root.querySelector('input[type="hidden"]');
+    setDatePickerValue(root, hidden?.value || "");
+  });
+}
+
 function downloadCsv(csvContent, filename) {
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob(["\ufeff", csvContent], { type: "text/csv;charset=utf-8" }));
@@ -1411,6 +2233,68 @@ function initEventHandlers() {
   if (analyzeBtn) {
     analyzeBtn.addEventListener("click", () => loadComments({ notify: true, force: false }));
   }
+
+  const observatorioSearchBtn = document.getElementById("observatorioSearchBtn");
+  if (observatorioSearchBtn) {
+    observatorioSearchBtn.addEventListener("click", () => runObservatorioSearch());
+  }
+  const observatorioSaveSearchBtn = document.getElementById("observatorioSaveSearchBtn");
+  if (observatorioSaveSearchBtn) {
+    observatorioSaveSearchBtn.addEventListener("click", saveCurrentSearch);
+  }
+  const observatorioTopicInput = document.getElementById("observatorioTopicInput");
+  if (observatorioTopicInput) {
+    observatorioTopicInput.value = state.observatorio.topic;
+    observatorioTopicInput.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runObservatorioSearch();
+      }
+    });
+  }
+  const cantonSelect = document.getElementById("observatorioCantonSelect");
+  if (cantonSelect) {
+    cantonSelect.addEventListener("change", () => {
+      state.observatorio.canton = cantonSelect.value;
+      state.observatorio.parish = "";
+      refreshParishOptions();
+    });
+  }
+  ["exportCsvBtn", "exportExcelBtn", "exportPdfBtn"].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener("click", () => exportObservatorio(btn.dataset.export || "csv"));
+  });
+
+  const scheduleBtn = document.getElementById("observatorioScheduleBtn");
+  if (scheduleBtn) scheduleBtn.addEventListener("click", () => scheduleCurrentMonitor());
+
+  const refreshMonitorsBtn = document.getElementById("refreshMonitorsBtn");
+  if (refreshMonitorsBtn) refreshMonitorsBtn.addEventListener("click", () => refreshMonitorsPanel());
+
+  const loginForm = document.getElementById("loginForm");
+  if (loginForm) {
+    loginForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const errorEl = document.getElementById("loginError");
+      const email = document.getElementById("loginEmail")?.value?.trim();
+      const password = document.getElementById("loginPassword")?.value || "";
+      try {
+        if (errorEl) errorEl.hidden = true;
+        await loginWithPassword(email, password);
+        showLoginGate(false);
+        await bootAuthenticatedApp();
+        showToast(`Bienvenido · ${(state.auth.profile?.roles || []).join(", ")}`);
+      } catch (error) {
+        if (errorEl) {
+          errorEl.hidden = false;
+          errorEl.textContent = error.message || "No se pudo iniciar sesión";
+        }
+      }
+    });
+  }
+
+  const logoutButton = document.getElementById("logoutButton");
+  if (logoutButton) logoutButton.addEventListener("click", () => logoutSession());
 
   // Search & Filter Listeners for per-module and global tables
   document.querySelectorAll(".table-search-input").forEach(input => {
@@ -1616,18 +2500,41 @@ function toggleSidebarCollapse() {
 /* ========================================== */
 /* APP INITIALIZATION ENTRY POINT             */
 /* ========================================== */
-document.addEventListener("DOMContentLoaded", () => {
+async function bootAuthenticatedApp() {
+  loadSavedSources();
+  loadHistory();
+  loadSavedSearches();
+  applyRolePermissions();
+  await loadTerritoryCatalog();
+  if (hasMinRole("Administrator")) {
+    refreshCredentialStatus();
+  }
+  renderActiveView();
+  updateNotch();
+  runObservatorioSearch({ notify: false });
+  refreshMonitorsPanel();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
   initTheme();
   initNavigation();
   initSidebarCollapse();
   initEventHandlers();
   initializeFluentSelects();
-  loadSavedSources();
-  loadHistory();
-  refreshCredentialStatus();
+  initSpanishDatePickers();
+  loadAuthSession();
 
-  // La aplicación inicia en reposo. El análisis solo comienza cuando el
-  // usuario pulsa el botón de analizar de un módulo o el botón Actualizar.
-  renderActiveView();
-  updateNotch();
+  if (!state.auth.accessToken) {
+    showLoginGate(true);
+    return;
+  }
+
+  try {
+    await loadUserProfile();
+    showLoginGate(false);
+    await bootAuthenticatedApp();
+  } catch (error) {
+    clearAuthSession();
+    showLoginGate(true);
+  }
 });

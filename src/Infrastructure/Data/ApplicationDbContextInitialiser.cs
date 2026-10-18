@@ -60,29 +60,32 @@ public class ApplicationDbContextInitialiser(
 
     public async Task TrySeedAsync()
     {
-        // Default roles
-        var administratorRole = new IdentityRole(Roles.Administrator);
-
-        if (roleManager.Roles.All(r => r.Name != administratorRole.Name))
+        foreach (var roleName in new[] { Roles.Administrator, Roles.Analyst, Roles.Consulta })
         {
-            await roleManager.CreateAsync(administratorRole);
-        }
-
-        // Default users
-        var administrator = new ApplicationUser
-        {
-            UserName = "administrator@localhost",
-            Email = "administrator@localhost",
-        };
-
-        if (userManager.Users.All(u => u.UserName != administrator.UserName))
-        {
-            await userManager.CreateAsync(administrator, "Administrator1!");
-            if (!string.IsNullOrWhiteSpace(administratorRole.Name))
+            if (roleManager.Roles.All(r => r.Name != roleName))
             {
-                await userManager.AddToRolesAsync(administrator, new[] { administratorRole.Name });
+                await roleManager.CreateAsync(new IdentityRole(roleName));
             }
         }
+
+        await EnsureUserWithRoleAsync(
+            userManager,
+            "administrator@localhost",
+            "Administrator1!",
+            Roles.Administrator
+        );
+        await EnsureUserWithRoleAsync(
+            userManager,
+            "analista@localhost",
+            "Analista1!",
+            Roles.Analyst
+        );
+        await EnsureUserWithRoleAsync(
+            userManager,
+            "consulta@localhost",
+            "Consulta1!",
+            Roles.Consulta
+        );
 
         // Default data
         // Seed, if necessary
@@ -98,6 +101,26 @@ public class ApplicationDbContextInitialiser(
             context.TodoLists.Add(list);
 
             await context.SaveChangesAsync();
+        }
+    }
+
+    private static async Task EnsureUserWithRoleAsync(
+        UserManager<ApplicationUser> userManager,
+        string email,
+        string password,
+        string role
+    )
+    {
+        var user = userManager.Users.FirstOrDefault(u => u.UserName == email);
+        if (user is null)
+        {
+            user = new ApplicationUser { UserName = email, Email = email };
+            await userManager.CreateAsync(user, password);
+        }
+
+        if (!await userManager.IsInRoleAsync(user, role))
+        {
+            await userManager.AddToRoleAsync(user, role);
         }
     }
 }

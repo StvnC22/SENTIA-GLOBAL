@@ -1673,20 +1673,11 @@ public sealed class ApifySocialCommentProvider(
     private static string FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
 
-    private static bool MatchesTopic(SocialCommentDraft comment, string topic)
-    {
-        var source = Normalize($"{comment.Text} {comment.PostTitle} {comment.AuthorName} {comment.AuthorHandle}");
-        return topic.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Select(term => Normalize(term).TrimEnd('s'))
-            .Where(term => term.Length > 2)
-            .All(source.Contains);
-    }
-
-    private static string Normalize(string value) =>
-        value.Normalize(System.Text.NormalizationForm.FormD)
-            .Where(character => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character) != System.Globalization.UnicodeCategory.NonSpacingMark)
-            .Aggregate(new System.Text.StringBuilder(), (builder, character) => builder.Append(char.ToLowerInvariant(character)))
-            .ToString();
+    private static bool MatchesTopic(SocialCommentDraft comment, string topic) =>
+        AnalisisSentimiento.Application.SocialListening.Search.BooleanQueryMatcher.Matches(
+            topic,
+            $"{comment.Text} {comment.PostTitle} {comment.AuthorName} {comment.AuthorHandle}"
+        );
 
     private static DateTimeOffset ParseTimestamp(params string[] values)
     {

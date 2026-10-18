@@ -1,5 +1,6 @@
 using AnalisisSentimiento.Application.ApiCredentials.Commands.SaveApiCredentials;
 using AnalisisSentimiento.Application.ApiCredentials.Queries.GetApiCredentialStatus;
+using AnalisisSentimiento.Domain.Constants;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace AnalisisSentimiento.Web.Endpoints;
@@ -10,8 +11,11 @@ public class ApiCredentials : IEndpointGroup
 
     public static void Map(RouteGroupBuilder groupBuilder)
     {
+        groupBuilder.RequireAuthorization();
         groupBuilder.MapGet(GetStatus);
-        groupBuilder.MapPut(Save, string.Empty);
+        groupBuilder
+            .MapPut(Save, string.Empty)
+            .RequireAuthorization(policy => policy.RequireRole(Roles.Administrator));
     }
 
     [EndpointSummary("Consultar estado de las claves API")]

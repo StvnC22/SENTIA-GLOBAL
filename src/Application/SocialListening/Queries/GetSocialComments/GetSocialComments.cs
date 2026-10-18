@@ -1,4 +1,8 @@
 using AnalisisSentimiento.Application.Common.Interfaces;
+using AnalisisSentimiento.Application.SocialListening.Insights;
+using AnalisisSentimiento.Application.SocialListening.Preprocessing;
+using AnalisisSentimiento.Application.SocialListening.Search;
+using AnalisisSentimiento.Application.SocialListening.Territory;
 
 namespace AnalisisSentimiento.Application.SocialListening.Queries.GetSocialComments;
 
@@ -7,9 +11,13 @@ public record GetSocialCommentsQuery(
     bool Refresh = false,
     string? Topic = null,
     string? Prompt = null,
-    IReadOnlyDictionary<string, string>? SourceUrls = null
-)
-    : IQuery<SocialListeningDashboard>;
+    IReadOnlyDictionary<string, string>? SourceUrls = null,
+    DateTimeOffset? FromDate = null,
+    DateTimeOffset? ToDate = null,
+    string? Province = null,
+    string? Canton = null,
+    string? Parish = null
+) : IQuery<SocialListeningDashboard>;
 
 internal class GetSocialCommentsQueryHandler(
     ISocialCommentProvider commentProvider,
@@ -29,7 +37,28 @@ internal class GetSocialCommentsQueryHandler(
             request.Topic,
             request.SourceUrls
         );
-        var drafts = fetchResult.Comments;
+
+        var drafts = CommentPreprocessor
+            .Clean(fetchResult.Comments)
+            .Select(EnrichTerritory)
+            .Where(draft =>
+                BooleanQueryMatcher.Matches(
+                    request.Topic,
+                    $"{draft.Text} {draft.PostTitle} {draft.AuthorHandle}"
+                )
+            )
+            .Where(draft =>
+                ManabiTerritoryCatalog.MatchesFilter(
+                    draft.Province,
+                    draft.Canton,
+                    draft.Parish,
+                    request.Province,
+                    request.Canton,
+                    request.Parish
+                )
+            )
+            .Where(draft => MatchesDateRange(draft.PublishedAt, request.FromDate, request.ToDate))
+            .ToArray();
 
         var sentimentRequests = drafts
             .Select(comment => new SentimentAnalysisRequest(comment.Id, comment.Text))
@@ -48,6 +77,8 @@ internal class GetSocialCommentsQueryHandler(
                     ? analyzed
                     : SpanishSentimentAnalyzer.Analyze(draft.Text);
 
+                var enrichment = TextEnrichment.Extract(draft.Text);
+
                 return new SocialComment(
                     draft.Id,
                     draft.Platform,
@@ -59,7 +90,14 @@ internal class GetSocialCommentsQueryHandler(
                     draft.PostTitle,
                     draft.PostUrl,
                     draft.PublishedAt,
-                    sentiment
+                    sentiment,
+                    draft.Province,
+                    draft.Canton,
+                    draft.Parish,
+                    draft.ReactionCount,
+                    enrichment.Topics,
+                    enrichment.Entities,
+                    enrichment.Emotions
                 );
             })
             .Where(comment =>
@@ -76,13 +114,56 @@ internal class GetSocialCommentsQueryHandler(
             comments.Count(comment => comment.Sentiment.Label == "negative")
         );
 
+        var insights = DashboardInsightBuilder.Build(comments, request.Topic);
+
         return new SocialListeningDashboard(
             comments,
             summary,
             timeProvider.GetUtcNow(),
             fetchResult.DataSource,
-            fetchResult.Message
+            fetchResult.Message,
+            insights
         );
+    }
+
+    private static SocialCommentDraft EnrichTerritory(SocialCommentDraft draft)
+    {
+        if (!string.IsNullOrWhiteSpace(draft.Province) || !string.IsNullOrWhiteSpace(draft.Canton))
+        {
+            return draft;
+        }
+
+        var inferred = ManabiTerritoryCatalog.InferFromText($"{draft.Text} {draft.PostTitle}");
+        if (inferred is null)
+        {
+            return draft;
+        }
+
+        return draft with
+        {
+            Province = inferred.Province,
+            Canton = inferred.Canton,
+            Parish = inferred.Parish,
+        };
+    }
+
+    private static bool MatchesDateRange(
+        DateTimeOffset publishedAt,
+        DateTimeOffset? fromDate,
+        DateTimeOffset? toDate
+    )
+    {
+        if (fromDate is not null && publishedAt < fromDate)
+        {
+            return false;
+        }
+
+        if (toDate is not null && publishedAt > toDate)
+        {
+            return false;
+        }
+
+        return true;
     }
 }
 
@@ -204,12 +285,89 @@ public static class SpanishSentimentAnalyzer
     }
 }
 
+public static class TextEnrichment
+{
+    private static readonly (string Topic, string[] Signals)[] TopicLexicon =
+    [
+        (
+            "educación",
+            [
+                "universidad",
+                "carrera",
+                "matrícula",
+                "matricula",
+                "admisiones",
+                "estudiante",
+                "académ",
+            ]
+        ),
+        ("servicio", ["trámite", "tramite", "atienden", "responden", "sistema", "plataforma"]),
+        (
+            "infraestructura",
+            ["campus", "aulas", "edificio", "laboratorio", "extensión", "extension"]
+        ),
+        ("investigación", ["investigación", "investigacion", "convenio", "proyecto"]),
+        ("beca", ["beca", "ayuda", "beneficio", "financiamiento"]),
+    ];
+
+    private static readonly (string Emotion, string[] Signals)[] EmotionLexicon =
+    [
+        ("alegría", ["orgullo", "feliz", "gracias", "lindo", "excelente", "amor"]),
+        ("enojo", ["indign", "vergüenza", "verguenza", "pésima", "pesima", "denuncia"]),
+        ("tristeza", ["triste", "dolor", "pésame", "condolencia", "pérdida"]),
+        ("confianza", ["claro", "clara", "confi", "seguro", "apoyo"]),
+        ("preocupación", ["urgente", "imposible", "no funciona", "otra vez", "necesito"]),
+    ];
+
+    public static TextEnrichmentResult Extract(string text)
+    {
+        var lower = text.ToLowerInvariant();
+        var topics = TopicLexicon
+            .Where(entry =>
+                entry.Signals.Any(signal => lower.Contains(signal, StringComparison.Ordinal))
+            )
+            .Select(entry => entry.Topic)
+            .Distinct()
+            .ToArray();
+
+        var emotions = EmotionLexicon
+            .Where(entry =>
+                entry.Signals.Any(signal => lower.Contains(signal, StringComparison.Ordinal))
+            )
+            .Select(entry => entry.Emotion)
+            .Distinct()
+            .ToArray();
+
+        var entities = new List<string>();
+        if (lower.Contains("uleam", StringComparison.Ordinal))
+            entities.Add("ULEAM");
+        if (lower.Contains("manab", StringComparison.Ordinal))
+            entities.Add("Manabí");
+        foreach (var canton in ManabiTerritoryCatalog.CantonNames)
+        {
+            if (lower.Contains(canton.ToLowerInvariant(), StringComparison.Ordinal))
+            {
+                entities.Add(canton);
+            }
+        }
+
+        return new TextEnrichmentResult(topics, entities.Distinct().ToArray(), emotions);
+    }
+}
+
+public record TextEnrichmentResult(
+    IReadOnlyList<string> Topics,
+    IReadOnlyList<string> Entities,
+    IReadOnlyList<string> Emotions
+);
+
 public record SocialListeningDashboard(
     IReadOnlyCollection<SocialComment> Comments,
     SentimentSummary Summary,
     DateTimeOffset UpdatedAt,
     string DataSource = "demo",
-    string? Message = null
+    string? Message = null,
+    DashboardInsights? Insights = null
 );
 
 public record SocialComment(
@@ -223,9 +381,37 @@ public record SocialComment(
     string PostTitle,
     string PostUrl,
     DateTimeOffset PublishedAt,
-    SentimentResult Sentiment = null!
+    SentimentResult Sentiment = null!,
+    string? Province = null,
+    string? Canton = null,
+    string? Parish = null,
+    int ReactionCount = 0,
+    IReadOnlyList<string>? Topics = null,
+    IReadOnlyList<string>? Entities = null,
+    IReadOnlyList<string>? Emotions = null
 );
 
 public record SentimentResult(string Label, string DisplayName, int Confidence);
 
 public record SentimentSummary(int Total, int Positive, int Neutral, int Negative);
+
+public record DashboardInsights(
+    IReadOnlyList<TemporalTrendPoint> TemporalTrend,
+    IReadOnlyList<GeoMentionRank> GeoRanking,
+    IReadOnlyList<WordCloudTerm> WordCloud,
+    string ExecutiveSummary
+);
+
+public record TemporalTrendPoint(DateTime Date, int Total, int Positive, int Neutral, int Negative);
+
+public record GeoMentionRank(
+    string Province,
+    string? Canton,
+    string? Parish,
+    int Mentions,
+    int Positive,
+    int Neutral,
+    int Negative
+);
+
+public record WordCloudTerm(string Term, int Count);

@@ -8,5 +8,11 @@ public interface IApplicationDbContext
 
     DbSet<TodoItem> TodoItems { get; }
 
+    DbSet<ScheduledMonitor> ScheduledMonitors { get; }
+
+    DbSet<MonitorAlert> MonitorAlerts { get; }
+
+    DbSet<ActivityLogEntry> ActivityLogEntries { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }

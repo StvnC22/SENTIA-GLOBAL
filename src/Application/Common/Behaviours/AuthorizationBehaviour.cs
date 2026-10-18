@@ -38,14 +38,22 @@ public class AuthorizationBehaviour<TRequest, TResponse>(
 
                 foreach (var roles in authorizeAttributesWithRoles.Select(a => a.Roles.Split(',')))
                 {
-                    foreach (var role in roles)
+                    foreach (var role in roles.Select(r => r.Trim()).Where(r => r.Length > 0))
                     {
-                        var isInRole = user.Roles?.Any(x => role == x) ?? false;
+                        var isInRole =
+                            user.Roles?.Any(x =>
+                                string.Equals(role, x, StringComparison.OrdinalIgnoreCase)
+                            ) ?? false;
                         if (isInRole)
                         {
                             authorized = true;
                             break;
                         }
+                    }
+
+                    if (authorized)
+                    {
+                        break;
                     }
                 }
 

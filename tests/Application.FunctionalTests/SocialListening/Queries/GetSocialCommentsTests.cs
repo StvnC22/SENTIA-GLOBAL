@@ -14,5 +14,25 @@ public class GetSocialCommentsTests : TestBase
         result.Summary.Total.ShouldBe(result.Comments.Count);
         result.Summary.Positive.ShouldBeGreaterThan(0);
         result.Summary.Negative.ShouldBeGreaterThan(0);
+        result.Insights.ShouldNotBeNull();
+        result.Insights!.ExecutiveSummary.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    [Test]
+    public async Task ShouldFilterByBooleanTopicAndTerritory()
+    {
+        var result = await TestApp.SendAsync(
+            new GetSocialCommentsQuery(
+                Topic: "ULEAM O Manabí",
+                Province: "Manabí",
+                Canton: "Portoviejo"
+            )
+        );
+
+        result.Comments.ShouldNotBeEmpty();
+        result.Comments.ShouldAllBe(comment =>
+            string.Equals(comment.Canton, "Portoviejo", StringComparison.OrdinalIgnoreCase)
+        );
+        result.Insights!.GeoRanking.ShouldNotBeEmpty();
     }
 }

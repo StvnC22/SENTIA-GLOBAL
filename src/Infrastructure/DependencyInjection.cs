@@ -3,6 +3,7 @@ using AnalisisSentimiento.Infrastructure.Configuration;
 using AnalisisSentimiento.Infrastructure.Data;
 using AnalisisSentimiento.Infrastructure.Data.Interceptors;
 using AnalisisSentimiento.Infrastructure.Identity;
+using AnalisisSentimiento.Infrastructure.Monitoring;
 using AnalisisSentimiento.Infrastructure.SocialListening.Apify;
 using AnalisisSentimiento.Infrastructure.SocialListening.Configuration;
 using AnalisisSentimiento.Infrastructure.SocialListening.Sentiment;
@@ -44,16 +45,28 @@ public static class DependencyInjection
 
         builder.Services.AddScoped<ApplicationDbContextInitialiser>();
 
-        builder.Services.AddAuthentication().AddBearerToken(IdentityConstants.BearerScheme);
+        builder
+            .Services.AddAuthentication(IdentityConstants.BearerScheme)
+            .AddBearerToken(IdentityConstants.BearerScheme);
 
         builder.Services.AddAuthorizationBuilder();
 
         builder
-            .Services.AddIdentityCore<ApplicationUser>()
+            .Services.AddIdentityCore<ApplicationUser>(options =>
+            {
+                options.SignIn.RequireConfirmedAccount = false;
+                options.Password.RequireDigit = true;
+                options.Password.RequireLowercase = true;
+                options.Password.RequireUppercase = true;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequiredLength = 8;
+            })
             .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
+            .AddSignInManager()
             .AddApiEndpoints();
 
+        builder.Services.AddHostedService<ScheduledMonitorWorker>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<IApiCredentialStore, EncryptedFileApiCredentialStore>();
         builder.Services.AddTransient<IIdentityService, IdentityService>();

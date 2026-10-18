@@ -11,11 +11,34 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=sentia-20261005-v1">
+  <link rel="stylesheet" href="/styles.css?v=sentia-20261017-dates-theme">
 </head>
 <body class="app-body">
+  <!-- LOGIN GATE -->
+  <div class="login-gate" id="loginGate" hidden>
+    <div class="login-card glass-card">
+      <div class="login-brand">
+        <strong>Sentia Global</strong>
+        <span>Observatorio Territorial · Acceso seguro</span>
+      </div>
+      <form id="loginForm" class="login-form">
+        <label>
+          <span>Usuario / correo</span>
+          <input id="loginEmail" class="modern-input" type="email" autocomplete="username" required placeholder="analista@localhost">
+        </label>
+        <label>
+          <span>Contraseña</span>
+          <input id="loginPassword" class="modern-input" type="password" autocomplete="current-password" required placeholder="••••••••">
+        </label>
+        <p class="form-help-text">Roles: Administrador, Analista y Consulta. Ejemplos: administrator@localhost / analista@localhost / consulta@localhost</p>
+        <p class="login-error" id="loginError" hidden></p>
+        <button class="primary-button" id="loginSubmitBtn" type="submit"><span>Iniciar sesión</span></button>
+      </form>
+    </div>
+  </div>
+
   <!-- App Shell Layout -->
-  <div class="app-layout">
+  <div class="app-layout" id="appShell" hidden>
     
     <!-- Floating Sidebar Navigation -->
     <aside class="app-sidebar" id="appSidebar">
@@ -88,6 +111,14 @@
 
         <div class="nav-section-title">GESTIÓN & HISTORIAL</div>
 
+        <button class="nav-item" data-nav="monitors" type="button" title="Monitoreos periódicos" data-role-min="Analyst">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2zm6-6V11a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z"/></svg>
+          </span>
+          <span class="nav-label">Monitoreos</span>
+          <span class="nav-count" id="alertsBadge">0</span>
+        </button>
+
         <button class="nav-item" data-nav="history" type="button" title="Historial">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -96,7 +127,7 @@
           <span class="history-badge" id="historyBadge">0</span>
         </button>
 
-        <button class="nav-item" data-nav="settings" type="button" title="Configuración">
+        <button class="nav-item" data-nav="settings" type="button" title="Configuración" data-role-min="Administrator">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </span>
@@ -145,6 +176,13 @@
         </div>
 
         <div class="header-right">
+          <div class="user-session-widget" id="userSessionWidget" hidden>
+            <div class="user-session-text">
+              <strong id="userSessionName">—</strong>
+              <span id="userSessionRole">—</span>
+            </div>
+            <button class="secondary-button" id="logoutButton" type="button">Salir</button>
+          </div>
           <!-- Theme Switcher -->
           <div class="theme-switcher-group" aria-label="Selector de tema visual">
             <button class="theme-btn active" data-theme-val="dark" type="button" title="Modo Oscuro">
@@ -167,9 +205,9 @@
         <section class="view-panel active" id="view-dashboard">
           <div class="panel-header">
             <div>
-              <span class="eyebrow-badge">VISIÓN EXECUTIVE & GLOBAL</span>
+              <span class="eyebrow-badge">OBSERVATORIO TERRITORIAL ULEAM</span>
               <h1 class="page-title">Centro de Monitoreo de Sentimientos</h1>
-              <p class="page-description">Resumen consolidado de escucha social inteligente en tiempo real.</p>
+              <p class="page-description">Busque, recolecte y analice opiniones públicas sobre un tema y territorio en Facebook, X, Instagram y TikTok.</p>
             </div>
             
             <div class="period-control" aria-label="Periodo de análisis">
@@ -187,6 +225,90 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <div class="glass-card search-config-card observatorio-search-card">
+            <div class="card-header">
+              <div>
+                <span class="insight-kicker">Búsqueda del Observatorio</span>
+                <h3>Tema, operadores y territorio</h3>
+              </div>
+              <span class="card-tag">Y / O / NO</span>
+            </div>
+            <div class="observatorio-form-grid">
+              <label class="observatorio-field wide">
+                <span>Consulta (palabras clave, #hashtags, sinónimos con ~ o |)</span>
+                <input id="observatorioTopicInput" class="modern-input" type="search" placeholder='Ej: ULEAM Y (matrícula|admisiones) NO spam  ·  #Manabi  ·  beca~ayuda,beneficio'>
+              </label>
+              <label class="observatorio-field">
+                <span>Red social</span>
+                <select id="observatorioPlatformSelect" class="modern-select">
+                  <option value="">Todas</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="x">X</option>
+                </select>
+              </label>
+              <label class="observatorio-field">
+                <span>Provincia</span>
+                <select id="observatorioProvinceSelect" class="modern-select">
+                  <option value="Manabí">Manabí</option>
+                  <option value="">Todas</option>
+                </select>
+              </label>
+              <label class="observatorio-field">
+                <span>Cantón</span>
+                <select id="observatorioCantonSelect" class="modern-select">
+                  <option value="">Todos</option>
+                </select>
+              </label>
+              <label class="observatorio-field">
+                <span>Parroquia</span>
+                <select id="observatorioParishSelect" class="modern-select">
+                  <option value="">Todas</option>
+                </select>
+              </label>
+              <label class="observatorio-field">
+                <span>Desde</span>
+                <div class="date-picker" data-date-picker="from">
+                  <input id="observatorioFromDate" type="hidden" value="">
+                  <button type="button" class="modern-input date-picker-trigger" id="observatorioFromDateTrigger" aria-haspopup="dialog" aria-expanded="false">
+                    <span class="date-picker-value" data-placeholder="true">DD/MM/AAAA</span>
+                    <svg class="date-picker-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+                  </button>
+                  <div class="date-picker-popover" hidden role="dialog" aria-label="Seleccionar fecha desde"></div>
+                </div>
+              </label>
+              <label class="observatorio-field">
+                <span>Hasta</span>
+                <div class="date-picker" data-date-picker="to">
+                  <input id="observatorioToDate" type="hidden" value="">
+                  <button type="button" class="modern-input date-picker-trigger" id="observatorioToDateTrigger" aria-haspopup="dialog" aria-expanded="false">
+                    <span class="date-picker-value" data-placeholder="true">DD/MM/AAAA</span>
+                    <svg class="date-picker-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+                  </button>
+                  <div class="date-picker-popover" hidden role="dialog" aria-label="Seleccionar fecha hasta"></div>
+                </div>
+              </label>
+            </div>
+            <div class="observatorio-actions-row">
+              <button class="primary-button" id="observatorioSearchBtn" type="button"><span>Buscar y analizar</span></button>
+              <button class="secondary-button" id="observatorioSaveSearchBtn" type="button" data-role-min="Analyst"><span>Guardar búsqueda</span></button>
+              <button class="secondary-button" id="observatorioScheduleBtn" type="button" data-role-min="Analyst"><span>Programar monitoreo</span></button>
+              <label class="observatorio-field schedule-interval-field" data-role-min="Analyst">
+                <span>Cada (min)</span>
+                <input id="observatorioIntervalInput" class="modern-input" type="number" min="5" max="1440" value="60">
+              </label>
+              <div class="export-group">
+                <button class="export-button" id="exportCsvBtn" type="button" data-export="csv">CSV</button>
+                <button class="export-button" id="exportExcelBtn" type="button" data-export="excel">Excel</button>
+                <button class="export-button" id="exportPdfBtn" type="button" data-export="pdf">PDF</button>
+              </div>
+            </div>
+            <p class="form-help-text" id="observatorioExecutiveSummary">Ejecute una búsqueda para generar el resumen ejecutivo automático.</p>
+            <div id="observatorioAlertBanner" class="observatorio-alert" hidden></div>
+            <div id="savedSearchesList" class="saved-searches-list" hidden></div>
           </div>
 
           <!-- Top Metric Cards Grid -->
@@ -397,8 +519,32 @@
             </div>
           </div>
 
-          <!-- Bottom Visual Insights: Global Cloud -->
-          <div class="insights-grid single-insight">
+          <!-- Bottom Visual Insights -->
+          <div class="insights-grid observatorio-insights">
+            <div class="glass-card">
+              <div class="card-header">
+                <div>
+                  <span class="insight-kicker">Tendencia temporal</span>
+                  <h3>Evolución del sentimiento</h3>
+                </div>
+                <span class="card-tag" id="dashTrendMeta">0 días</span>
+              </div>
+              <div class="trend-chart" id="dashTrendChart">
+                <span class="insight-empty">Sin datos temporales aún.</span>
+              </div>
+            </div>
+            <div class="glass-card">
+              <div class="card-header">
+                <div>
+                  <span class="insight-kicker">Territorio</span>
+                  <h3>Ranking de menciones geográficas</h3>
+                </div>
+                <span class="card-tag" id="dashGeoMeta">0 zonas</span>
+              </div>
+              <div class="geo-ranking" id="dashGeoRanking">
+                <span class="insight-empty">Sin ubicaciones detectadas.</span>
+              </div>
+            </div>
             <div class="glass-card">
               <div class="card-header">
                 <div>
@@ -411,7 +557,6 @@
                 <span class="insight-empty">Analiza un tema para ver las palabras clave más relevantes.</span>
               </div>
             </div>
-
           </div>
         </section>
 
@@ -1031,6 +1176,67 @@
 
 
         <!-- ========================================== -->
+        <!-- VIEW: MONITOREOS PERIÓDICOS                -->
+        <!-- ========================================== -->
+        <section class="view-panel" id="view-monitors">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-badge">GESTIÓN · ALERTAS</span>
+              <h1 class="page-title">Monitoreos periódicos</h1>
+              <p class="page-description">Programaciones activas, alertas de cambio de sentimiento y registro de actividad.</p>
+            </div>
+            <button class="secondary-button" id="refreshMonitorsBtn" type="button"><span>Actualizar</span></button>
+          </div>
+
+          <div class="insights-grid monitors-split">
+            <div class="glass-card">
+              <div class="card-header">
+                <h3>Programaciones</h3>
+                <span class="card-tag" id="monitorsCountMeta">0</span>
+              </div>
+              <div class="table-responsive">
+                <table class="history-table">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Tema</th>
+                      <th>Intervalo</th>
+                      <th>Última / Próxima</th>
+                      <th>Estado</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="monitorsTableBody"></tbody>
+                </table>
+                <div class="empty-state" id="monitorsEmptyState">
+                  <h3>Sin monitoreos</h3>
+                  <p>Desde el Dashboard, pulse «Programar monitoreo» con un tema y territorio.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="glass-card">
+              <div class="card-header">
+                <h3>Alertas de sentimiento</h3>
+                <span class="card-tag" id="alertsCountMeta">0</span>
+              </div>
+              <div id="alertsList" class="alerts-list">
+                <span class="insight-empty">No hay alertas recientes.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card" data-role-min="Analyst" style="margin-top:1.25rem">
+            <div class="card-header">
+              <h3>Registro de actividad</h3>
+            </div>
+            <div id="activityLogList" class="activity-log-list">
+              <span class="insight-empty">Sin actividad registrada.</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
         <!-- VIEW 7: MÓDULO HISTORIAL                   -->
         <!-- ========================================== -->
         <section class="view-panel" id="view-history">
@@ -1236,6 +1442,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=sentia-20261006-v21" defer></script>
+  <script src="/app.js?v=sentia-20261017-dates-es" defer></script>
 </body>
 </html>

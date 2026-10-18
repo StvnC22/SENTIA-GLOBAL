@@ -16,6 +16,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>, IApplica
 
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
 
+    public DbSet<ScheduledMonitor> ScheduledMonitors => Set<ScheduledMonitor>();
+
+    public DbSet<MonitorAlert> MonitorAlerts => Set<MonitorAlert>();
+
+    public DbSet<ActivityLogEntry> ActivityLogEntries => Set<ActivityLogEntry>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

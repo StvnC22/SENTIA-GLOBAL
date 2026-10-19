@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>AnalisisSentimiento.AppHost</RootNamespace>
     <AssemblyName>AnalisisSentimiento.AppHost</AssemblyName>
+    <UserSecretsId>213e80d5-d0ab-4b3e-a942-c6594697c817</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

@@ -157,7 +157,8 @@ public sealed class DemoSocialCommentProvider : ISocialCommentProvider
         bool refresh,
         CancellationToken cancellationToken,
         string? topic = null,
-        IReadOnlyDictionary<string, string>? sourceUrls = null
+        IReadOnlyDictionary<string, string>? sourceUrls = null,
+        string? search = null
     )
     {
         var selected = Comments
@@ -179,15 +180,23 @@ public sealed class DemoSocialCommentProvider : ISocialCommentProvider
         }
 
         var source = Normalize($"{comment.Text} {comment.PostTitle}");
-        return topic.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        return topic
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Select(term => Normalize(term).TrimEnd('s'))
             .Where(term => term.Length > 2)
             .All(source.Contains);
     }
 
     private static string Normalize(string value) =>
-        value.Normalize(System.Text.NormalizationForm.FormD)
-            .Where(character => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character) != System.Globalization.UnicodeCategory.NonSpacingMark)
-            .Aggregate(new System.Text.StringBuilder(), (builder, character) => builder.Append(char.ToLowerInvariant(character)))
+        value
+            .Normalize(System.Text.NormalizationForm.FormD)
+            .Where(character =>
+                System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character)
+                != System.Globalization.UnicodeCategory.NonSpacingMark
+            )
+            .Aggregate(
+                new System.Text.StringBuilder(),
+                (builder, character) => builder.Append(char.ToLowerInvariant(character))
+            )
             .ToString();
 }

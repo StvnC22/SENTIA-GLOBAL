@@ -87,6 +87,16 @@ public static class DependencyInjection
             client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
             client.Timeout = TimeSpan.FromSeconds(60);
         });
+        builder.Services.AddHttpClient<OfficialXSocialCommentProvider>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.x.com/2/");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        builder.Services.AddHttpClient<OfficialMetaSocialCommentProvider>(client =>
+        {
+            client.BaseAddress = new Uri("https://graph.facebook.com/");
+            client.Timeout = TimeSpan.FromSeconds(45);
+        });
         builder.Services.AddSingleton<DemoSocialCommentProvider>();
         builder.Services.AddSingleton<ApifySocialCommentProvider>();
         builder.Services.AddSingleton<ISocialCommentProvider, CompositeSocialCommentProvider>();

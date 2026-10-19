@@ -7,7 +7,8 @@ public interface ISocialCommentProvider
         bool refresh,
         CancellationToken cancellationToken,
         string? topic = null,
-        IReadOnlyDictionary<string, string>? sourceUrls = null
+        IReadOnlyDictionary<string, string>? sourceUrls = null,
+        string? search = null
     );
 }
 
@@ -40,7 +41,8 @@ public sealed record SocialCommentDraft(
     string? Province = null,
     string? Canton = null,
     string? Parish = null,
-    int? Reactions = null
+    int? Reactions = null,
+    string? PlaceName = null
 );
 
 public interface ISocialMonitorStore

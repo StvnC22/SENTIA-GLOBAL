@@ -56,7 +56,22 @@ public sealed class SocialListeningOptions
 
     public ApifyActorOptions Actors { get; init; } = new();
 
+    public OfficialSocialApiOptions OfficialApis { get; init; } = new();
+
     public GeminiOptions Gemini { get; init; } = new();
+}
+
+public sealed class OfficialSocialApiOptions
+{
+    public string XBearerToken { get; init; } = string.Empty;
+
+    public string MetaAccessToken { get; init; } = string.Empty;
+
+    public string FacebookPageIds { get; init; } = string.Empty;
+
+    public string InstagramBusinessAccountIds { get; init; } = string.Empty;
+
+    public string MetaGraphApiVersion { get; init; } = "v26.0";
 }
 
 public sealed class ApifyActorOptions

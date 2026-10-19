@@ -314,7 +314,7 @@ function matchesAdvancedFilters(comment) {
   if (to && date > new Date(`${to}T23:59:59.999`)) return false;
   for (const [field, key] of [["provinceFilter", "province"], ["cantonFilter", "canton"], ["parishFilter", "parish"]]) {
     const expected = normalizeSearchText(document.getElementById(field)?.value?.trim());
-    if (expected && !normalizeSearchText(comment[key]).includes(expected)) return false;
+    if (expected && ![comment[key], comment.placeName].some(value => normalizeSearchText(value).includes(expected))) return false;
   }
   return true;
 }
@@ -543,11 +543,11 @@ function renderExecutiveSummary(comments = state.comments) {
   summary.textContent = `Se analizaron ${comments.length} publicaciones y comentarios. Predomina el sentimiento ${({ positive: "positivo", neutral: "neutro", negative: "negativo" })[leader[0]]} (${leader[1]}, ${percent(leader[1], comments.length)}%). ${platformLabel(topNet?.[0] || "global")} concentra más menciones (${topNet?.[1] || 0}). Temas frecuentes: ${topics.join(", ") || "sin términos destacados"}.`;
   const locations = new Map();
   for (const comment of comments) {
-    const location = [comment.parish, comment.canton, comment.province].filter(Boolean).join(", ");
+    const location = [comment.parish, comment.canton, comment.province, comment.placeName].filter(Boolean).join(", ");
     if (location) locations.set(location, (locations.get(location) || 0) + 1);
   }
   if (ranking) ranking.textContent = locations.size
-    ? `Menciones por ubicación: ${[...locations.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => `${name} (${count})`).join(" · ")}`
+    ? `Menciones por ubicación disponible: ${[...locations.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => `${name} (${count})`).join(" · ")}`
     : "Las fuentes conectadas no proporcionan ubicación geográfica para este análisis.";
 }
 
@@ -618,7 +618,7 @@ function applySavedSearch(id) {
 
 function exportExcelReport() {
   const comments = currentReportComments();
-  const rows = [["Red", "Usuario", "Comentario", "Publicación", "Sentimiento", "Confianza", "Emoción", "Temas", "Aspectos", "Entidades", "Reacciones", "Fecha", "URL"], ...comments.map(c => [c.platform, c.authorName, c.text, c.postTitle, c.sentiment?.displayName, `${c.sentiment?.confidence ?? ""}%`, c.insights?.emotion || "", (c.insights?.topics || []).join("; "), (c.insights?.aspects || []).join("; "), (c.insights?.entities || []).join("; "), c.reactions ?? "", c.publishedAt, c.postUrl])];
+  const rows = [["Red", "Usuario", "Comentario", "Publicación", "Sentimiento", "Confianza", "Emoción", "Temas", "Aspectos", "Entidades", "Reacciones", "Fecha", "Ubicación reportada", "URL"], ...comments.map(c => [c.platform, c.authorName, c.text, c.postTitle, c.sentiment?.displayName, `${c.sentiment?.confidence ?? ""}%`, c.insights?.emotion || "", (c.insights?.topics || []).join("; "), (c.insights?.aspects || []).join("; "), (c.insights?.entities || []).join("; "), c.reactions ?? "", c.publishedAt, c.placeName || [c.parish, c.canton, c.province].filter(Boolean).join(", "), c.postUrl])];
   const columnName = index => {
     let name = "";
     for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26)) name = String.fromCharCode(65 + ((value - 1) % 26)) + name;
@@ -690,8 +690,8 @@ function printExecutiveReport() {
   const reportWindow = window.open("", "_blank");
   if (!reportWindow) { showToast("Permite las ventanas emergentes para guardar el informe PDF"); return; }
   const summary = document.getElementById("executiveSummary")?.textContent || "Sin resumen disponible.";
-  const rows = comments.map(c => `<tr><td>${escapeHtml(c.platform)}</td><td>${escapeHtml(c.text)}</td><td>${escapeHtml(c.sentiment?.displayName)}</td><td>${escapeHtml(c.publishedAt)}</td><td><a href="${escapeHtml(c.postUrl)}">Abrir publicación</a></td></tr>`).join("");
-  reportWindow.document.write(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Informe Sentia Global</title><style>body{font:14px Arial;margin:32px;color:#172033}h1{color:#075985}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccd3dd;padding:7px;text-align:left;vertical-align:top}th{background:#e8f2fa}p{line-height:1.5}</style><h1>Observatorio Territorial · Análisis de sentimientos</h1><p>${escapeHtml(summary)}</p><p>Comentarios incluidos: ${comments.length}</p><table><thead><tr><th>Red</th><th>Comentario</th><th>Sentimiento</th><th>Fecha</th><th>Fuente</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></html>`);
+  const rows = comments.map(c => `<tr><td>${escapeHtml(c.platform)}</td><td>${escapeHtml(c.text)}</td><td>${escapeHtml(c.sentiment?.displayName)}</td><td>${escapeHtml(c.publishedAt)}</td><td>${escapeHtml(c.placeName || [c.parish, c.canton, c.province].filter(Boolean).join(", "))}</td><td><a href="${escapeHtml(c.postUrl)}">Abrir publicación</a></td></tr>`).join("");
+  reportWindow.document.write(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Informe Sentia Global</title><style>body{font:14px Arial;margin:32px;color:#172033}h1{color:#075985}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccd3dd;padding:7px;text-align:left;vertical-align:top}th{background:#e8f2fa}p{line-height:1.5}</style><h1>Observatorio Territorial · Análisis de sentimientos</h1><p>${escapeHtml(summary)}</p><p>Comentarios incluidos: ${comments.length}</p><table><thead><tr><th>Red</th><th>Comentario</th><th>Sentimiento</th><th>Fecha</th><th>Ubicación reportada</th><th>Fuente</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></html>`);
   reportWindow.document.close();
 }
 
@@ -767,7 +767,7 @@ function renderCommentRow(comment, showNetworkBadge = true) {
   const netBadge = showNetworkBadge ? `<td data-label="Red"><span class="history-net-pill ${escapeHtml(comment.platform)}">${escapeHtml(comment.platform)}</span></td>` : "";
   const insights = comment.insights;
   const insightDetails = insights
-    ? `<small class="confidence">Emoción: ${escapeHtml(insights.emotion)}${insights.aspects?.length ? ` · Aspectos: ${escapeHtml(insights.aspects.join(", "))}` : ""}${insights.entities?.length ? ` · Entidades: ${escapeHtml(insights.entities.join(", "))}` : ""}</small>`
+    ? `<small class="confidence">Emoción: ${escapeHtml(insights.emotion)}${insights.aspects?.length ? ` · Aspectos: ${escapeHtml(insights.aspects.join(", "))}` : ""}${insights.entities?.length ? ` · Entidades: ${escapeHtml(insights.entities.join(", "))}` : ""}${comment.placeName ? ` · Lugar reportado: ${escapeHtml(comment.placeName)}` : ""}</small>`
     : "";
   return `<tr>
     ${netBadge}
@@ -1818,8 +1818,8 @@ function initEventHandlers() {
         : filterComments(platform, state.sentiment, document.querySelector(`.table-search-input[data-platform="${platform}"]`)?.value || "", state.sort);
       
       const rows = [
-        ["Red", "Usuario", "Comentario", "URL comentario", "Publicación", "URL publicación", "Emoción", "Confianza", "Fecha"],
-        ...comments.map(item => [item.platform, item.authorName, item.text, item.commentUrl, item.postTitle, item.postUrl, item.sentiment.displayName, `${item.sentiment.confidence}%`, item.publishedAt])
+        ["Red", "Usuario", "Comentario", "URL comentario", "Publicación", "URL publicación", "Emoción", "Confianza", "Fecha", "Ubicación reportada"],
+        ...comments.map(item => [item.platform, item.authorName, item.text, item.commentUrl, item.postTitle, item.postUrl, item.sentiment.displayName, `${item.sentiment.confidence}%`, item.publishedAt, item.placeName || [item.parish, item.canton, item.province].filter(Boolean).join(", ")])
       ];
 
       const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");

@@ -17,6 +17,26 @@ requiere registrar una aplicación y configurar los tokens oficiales de cada pla
 El botón **Configurar API keys** permite guardarlos cifrados en el equipo; el panel solo
 consulta si cada clave está configurada y nunca devuelve su valor al navegador.
 
+### Conexión oficial con X
+
+El conector de X API v2 se activa cuando se configura un bearer token de una aplicación
+de desarrollador aprobada. Guarda el secreto en User Secrets del AppHost; no lo escribas
+en `appsettings.json` ni lo envíes por chat:
+
+```powershell
+dotnet user-secrets set "Parameters:x-api-bearer-token" "TOKEN_DE_X" --project src\AppHost
+```
+
+Después, inicia de nuevo la aplicación con Aspire. X Recent Search devuelve publicaciones
+de los últimos siete días. La clasificación territorial usa el lugar que X adjunta a una
+publicación y no deduce parroquias o cantones a partir del texto o del perfil del usuario.
+
+Facebook e Instagram necesitan tokens con acceso a las páginas o cuentas profesionales
+autorizadas. La búsqueda amplia de comentarios de cualquier cuenta pública no está
+disponible por esas APIs. TikTok restringe su Research API a proyectos de investigación
+aprobados. Hasta que esos accesos y activos autorizados estén disponibles, esas redes
+continúan usando el proveedor Apify ya configurado.
+
 ### Ejecutable para Windows
 
 Ejecuta `PUBLICAR_EXE.cmd` para crear una versión autónoma en
@@ -197,6 +217,17 @@ En desarrollo local se usan **User Secrets** de .NET sobre el proyecto `AppHost`
 dotnet user-secrets init --project src\AppHost
 dotnet user-secrets set "Parameters:NombreDelSecret" "valor-real" --project src\AppHost
 ```
+
+Para usar los conectores oficiales de X, Facebook e Instagram, agrega las credenciales y los IDs autorizados al perfil local (no los pongas en el repositorio):
+
+```powershell
+dotnet user-secrets set "Parameters:x-api-bearer-token" "TOKEN_DE_X" --project src\AppHost
+dotnet user-secrets set "Parameters:meta-access-token" "TOKEN_DE_META" --project src\AppHost
+dotnet user-secrets set "Parameters:meta-facebook-page-ids" "ID_PAGINA" --project src\AppHost
+dotnet user-secrets set "Parameters:meta-instagram-account-ids" "ID_CUENTA_PROFESIONAL" --project src\AppHost
+```
+
+Se pueden separar varios IDs con comas. El token de Meta debe tener los permisos aprobados para leer las páginas y cuentas profesionales indicadas. Facebook consulta publicaciones de esas Pages e Instagram consulta medios y comentarios de esas cuentas; la API no busca publicaciones públicas arbitrarias por palabra clave. La consulta se aplica sobre el texto de los posts y comentarios recuperados. TikTok continúa usando el proveedor configurado hasta que haya acceso a su API oficial de investigación.
 
 El secret declarado así se pasa al recurso que lo necesite desde `src/AppHost/Program.cs` (`builder.AddParameter("NombreDelSecret", secret: true)`). El archivo con los valores reales vive fuera del repo, en el perfil del usuario, y nunca se commitea.
 

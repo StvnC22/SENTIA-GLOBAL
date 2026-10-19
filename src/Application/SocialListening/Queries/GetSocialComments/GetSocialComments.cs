@@ -32,7 +32,8 @@ internal class GetSocialCommentsQueryHandler(
             request.Refresh,
             cancellationToken,
             request.Topic,
-            request.SourceUrls
+            request.SourceUrls,
+            request.Search
         );
         var drafts = fetchResult.Comments;
 
@@ -71,7 +72,8 @@ internal class GetSocialCommentsQueryHandler(
                     draft.Parish,
                     draft.Reactions,
                     insights,
-                    SocialTextInsightsAnalyzer.IsLikelySpam(draft.Text)
+                    SocialTextInsightsAnalyzer.IsLikelySpam(draft.Text),
+                    PlaceName: draft.PlaceName
                 );
             })
             .Where(comment =>
@@ -81,9 +83,11 @@ internal class GetSocialCommentsQueryHandler(
             .Where(comment => request.From is null || comment.PublishedAt >= request.From)
             .Where(comment => request.To is null || comment.PublishedAt <= request.To)
             .Where(comment => MatchesSearch(comment, request.Search))
-            .Where(comment => MatchesLocation(comment.Province, request.Province))
-            .Where(comment => MatchesLocation(comment.Canton, request.Canton))
-            .Where(comment => MatchesLocation(comment.Parish, request.Parish))
+            .Where(comment =>
+                MatchesLocation(comment.Province, comment.PlaceName, request.Province)
+            )
+            .Where(comment => MatchesLocation(comment.Canton, comment.PlaceName, request.Canton))
+            .Where(comment => MatchesLocation(comment.Parish, comment.PlaceName, request.Parish))
             .OrderByDescending(comment => comment.PublishedAt)
             .ToArray();
 
@@ -259,11 +263,17 @@ internal class GetSocialCommentsQueryHandler(
         return $"{comment.Platform}:{comment.AuthorHandle}:{comment.PostUrl}:{comment.PublishedAt:O}:{Normalize(comment.Text)}";
     }
 
-    private static bool MatchesLocation(string? actual, string? expected) =>
+    private static bool MatchesLocation(string? actual, string? placeName, string? expected) =>
         string.IsNullOrWhiteSpace(expected)
         || (
-            !string.IsNullOrWhiteSpace(actual)
-            && Normalize(actual).Contains(Normalize(expected), StringComparison.Ordinal)
+            (
+                !string.IsNullOrWhiteSpace(actual)
+                && Normalize(actual).Contains(Normalize(expected), StringComparison.Ordinal)
+            )
+            || (
+                !string.IsNullOrWhiteSpace(placeName)
+                && Normalize(placeName).Contains(Normalize(expected), StringComparison.Ordinal)
+            )
         );
 }
 
@@ -411,7 +421,8 @@ public record SocialComment(
     int? Reactions = null,
     SocialTextInsights? Insights = null,
     bool IsLikelySpam = false,
-    bool IsLikelyBot = false
+    bool IsLikelyBot = false,
+    string? PlaceName = null
 );
 
 public record SentimentResult(string Label, string DisplayName, int Confidence);

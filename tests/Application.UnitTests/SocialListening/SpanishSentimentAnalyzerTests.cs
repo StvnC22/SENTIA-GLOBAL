@@ -15,4 +15,25 @@ public class SpanishSentimentAnalyzerTests
     {
         SpanishSentimentAnalyzer.Analyze(text).Label.ShouldBe(expectedLabel);
     }
+
+    [Test]
+    public void AnalyzeInsights_IdentificaEmocionAspectoEntidadYTemas()
+    {
+        var insights = SocialTextInsightsAnalyzer.Analyze(
+            "Estoy orgulloso de la docencia en ULEAM #Educación"
+        );
+
+        insights.Emotion.ShouldBe("alegría");
+        insights.Aspects.ShouldContain("docencia");
+        insights.Entities.ShouldContain("ULEAM");
+        insights.Entities.ShouldContain("#Educación");
+        insights.Topics.ShouldContain("educación");
+    }
+
+    [TestCase("¡Gana un premio gratis! https://spam.invalid", true)]
+    [TestCase("¿Cómo va la matrícula?", false)]
+    public void IsLikelySpam_ClassifiesPromotionalContent(string text, bool expected)
+    {
+        SocialTextInsightsAnalyzer.IsLikelySpam(text).ShouldBe(expected);
+    }
 }

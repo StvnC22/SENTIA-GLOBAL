@@ -619,7 +619,7 @@ function applySavedSearch(id) {
 function exportExcelReport() {
   const comments = currentReportComments();
   const escape = value => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-  const rows = [["Red", "Usuario", "Comentario", "Publicación", "Sentimiento", "Confianza", "Fecha", "URL"], ...comments.map(c => [c.platform, c.authorName, c.text, c.postTitle, c.sentiment?.displayName, `${c.sentiment?.confidence ?? ""}%`, c.publishedAt, c.postUrl])];
+  const rows = [["Red", "Usuario", "Comentario", "Publicación", "Sentimiento", "Confianza", "Emoción", "Temas", "Aspectos", "Entidades", "Reacciones", "Fecha", "URL"], ...comments.map(c => [c.platform, c.authorName, c.text, c.postTitle, c.sentiment?.displayName, `${c.sentiment?.confidence ?? ""}%`, c.insights?.emotion || "", (c.insights?.topics || []).join("; "), (c.insights?.aspects || []).join("; "), (c.insights?.entities || []).join("; "), c.reactions ?? "", c.publishedAt, c.postUrl])];
   const workbook = `<html><meta charset="utf-8"><table>${rows.map(row => `<tr>${row.map(cell => `<td>${escape(cell)}</td>`).join("")}</tr>`).join("")}</table></html>`;
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob(["\ufeff", workbook], { type: "application/vnd.ms-excel;charset=utf-8" }));
@@ -638,41 +638,57 @@ function printExecutiveReport() {
   reportWindow.document.close();
 }
 
-function loadMonitorSettings() {
-  try { state.monitor = JSON.parse(localStorage.getItem("sentia-monitor-v1") || "null"); } catch { state.monitor = null; }
+async function loadMonitorSettings() {
+  try {
+    const response = await fetch("/api/social-monitoring");
+    if (response.ok) state.monitor = (await response.json())[0] || null;
+  } catch { state.monitor = null; }
   const status = document.getElementById("monitorStatus");
   const button = document.getElementById("toggleMonitorButton");
   const interval = document.getElementById("monitorInterval");
   const threshold = document.getElementById("alertThreshold");
   if (state.monitor && interval) interval.value = String(state.monitor.intervalMinutes || 60);
-  if (state.monitor && threshold) threshold.value = String(state.monitor.threshold || 10);
+  if (state.monitor && threshold) threshold.value = String(state.monitor.alertThreshold || 10);
   if (status) status.textContent = state.monitor?.enabled ? "Activo" : "Desactivado";
   if (button) button.textContent = state.monitor?.enabled ? "Desactivar monitoreo" : "Activar monitoreo";
+  const alert = document.getElementById("monitorAlert");
+  if (alert && state.monitor?.lastAlert) alert.textContent = state.monitor.lastAlert;
   if (state.monitor?.enabled) startMonitorTimer();
+  else if (state.monitorTimer) { clearInterval(state.monitorTimer); state.monitorTimer = null; }
 }
 
 function startMonitorTimer() {
+  if (state.monitorTimer) return;
   clearInterval(state.monitorTimer);
-  state.monitorTimer = setInterval(() => {
-    if (!state.monitor?.enabled || Date.now() < state.monitor.nextRunAt || getActiveJob("global")) return;
-    state.monitor.nextRunAt = Date.now() + state.monitor.intervalMinutes * 60_000;
-    localStorage.setItem("sentia-monitor-v1", JSON.stringify(state.monitor));
-    startAnalysisJob({ targetPlatform: "global", notify: true, force: true });
-  }, 15_000);
+  state.monitorTimer = setInterval(loadMonitorSettings, 30_000);
 }
 
-function toggleMonitor() {
-  const enabled = !state.monitor?.enabled;
-  state.monitor = {
-    enabled,
-    intervalMinutes: Number(document.getElementById("monitorInterval")?.value || 60),
-    threshold: Number(document.getElementById("alertThreshold")?.value || 10),
-    previousNegativeRate: state.comments.length ? percent(state.comments.filter(c => c.sentiment?.label === "negative").length, state.comments.length) : null,
-    nextRunAt: Date.now() + Number(document.getElementById("monitorInterval")?.value || 60) * 60_000
-  };
-  localStorage.setItem("sentia-monitor-v1", JSON.stringify(state.monitor));
-  loadMonitorSettings();
-  showToast(enabled ? "Monitoreo activado; se ejecuta mientras el panel está abierto" : "Monitoreo desactivado");
+async function toggleMonitor() {
+  try {
+    const enabled = !state.monitor?.enabled;
+    const rawPlatform = document.getElementById("globalPlatformSelect")?.value || "all";
+    const sources = Object.fromEntries(Object.entries(state.sources).filter(([, url]) => url?.trim()));
+    const response = await fetch("/api/social-monitoring", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: state.monitor?.id || null,
+        enabled,
+        intervalMinutes: Number(document.getElementById("monitorInterval")?.value || 60),
+        alertThreshold: Number(document.getElementById("alertThreshold")?.value || 10),
+        platform: ["all", "global"].includes(rawPlatform) ? null : rawPlatform,
+        topic: document.getElementById("topicInput")?.value?.trim() || null,
+        search: document.getElementById("searchInput")?.value?.trim() || null,
+        sourceUrls: sources
+      })
+    });
+    if (!response.ok) { showToast("No se pudo guardar el monitoreo en el servidor"); return; }
+    state.monitor = await response.json();
+    await loadMonitorSettings();
+    showToast(enabled ? "Monitoreo programado en el servidor" : "Monitoreo desactivado");
+  } catch {
+    showToast("No se pudo conectar con el servidor de monitoreo");
+  }
 }
 
 function checkMonitorAlert(comments) {
@@ -692,10 +708,14 @@ function checkMonitorAlert(comments) {
 function renderCommentRow(comment, showNetworkBadge = true) {
   const date = new Date(comment.publishedAt);
   const netBadge = showNetworkBadge ? `<td data-label="Red"><span class="history-net-pill ${escapeHtml(comment.platform)}">${escapeHtml(comment.platform)}</span></td>` : "";
+  const insights = comment.insights;
+  const insightDetails = insights
+    ? `<small class="confidence">Emoción: ${escapeHtml(insights.emotion)}${insights.aspects?.length ? ` · Aspectos: ${escapeHtml(insights.aspects.join(", "))}` : ""}${insights.entities?.length ? ` · Entidades: ${escapeHtml(insights.entities.join(", "))}` : ""}</small>`
+    : "";
   return `<tr>
     ${netBadge}
     <td data-label="Usuario"><a class="user-link" href="${escapeHtml(comment.authorUrl)}" target="_blank" rel="noopener noreferrer"><span class="user-avatar">${escapeHtml(initials(comment.authorName))}</span><span class="user-info"><strong>${escapeHtml(comment.authorName)}</strong><span>${escapeHtml(comment.authorHandle)}</span></span></a></td>
-    <td data-label="Comentario"><a class="comment-link" href="${escapeHtml(comment.commentUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(comment.text)}</a></td>
+    <td data-label="Comentario"><a class="comment-link" href="${escapeHtml(comment.commentUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(comment.text)}</a>${insightDetails}${comment.isLikelySpam || comment.isLikelyBot ? '<small class="confidence">Revisar: posible spam o actividad automatizada</small>' : ""}</td>
     <td data-label="Publicación"><a class="post-link" href="${escapeHtml(comment.postUrl)}" target="_blank" rel="noopener noreferrer"><span>${escapeHtml(comment.postTitle)}</span></a></td>
     <td data-label="Sentimiento"><span class="sentiment ${escapeHtml(comment.sentiment.label)}"><i></i>${escapeHtml(comment.sentiment.displayName)}</span><span class="confidence">${comment.sentiment.confidence}% confianza</span></td>
     <td class="date" data-label="Fecha"><strong>${escapeHtml(formatDay(date))}</strong><span>${escapeHtml(formatTime(date))}</span></td>

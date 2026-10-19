@@ -60,12 +60,12 @@ public class ApplicationDbContextInitialiser(
 
     public async Task TrySeedAsync()
     {
-        // Default roles
-        var administratorRole = new IdentityRole(Roles.Administrator);
-
-        if (roleManager.Roles.All(r => r.Name != administratorRole.Name))
+        foreach (var roleName in new[] { Roles.Administrator, Roles.Analyst, Roles.Viewer })
         {
-            await roleManager.CreateAsync(administratorRole);
+            if (!await roleManager.RoleExistsAsync(roleName))
+            {
+                await roleManager.CreateAsync(new IdentityRole(roleName));
+            }
         }
 
         // Default users
@@ -78,10 +78,7 @@ public class ApplicationDbContextInitialiser(
         if (userManager.Users.All(u => u.UserName != administrator.UserName))
         {
             await userManager.CreateAsync(administrator, "Administrator1!");
-            if (!string.IsNullOrWhiteSpace(administratorRole.Name))
-            {
-                await userManager.AddToRolesAsync(administrator, new[] { administratorRole.Name });
-            }
+            await userManager.AddToRoleAsync(administrator, Roles.Administrator);
         }
 
         // Default data

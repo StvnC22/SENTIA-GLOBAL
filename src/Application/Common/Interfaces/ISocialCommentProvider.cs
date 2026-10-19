@@ -42,3 +42,52 @@ public sealed record SocialCommentDraft(
     string? Parish = null,
     int? Reactions = null
 );
+
+public interface ISocialMonitorStore
+{
+    Task<IReadOnlyList<SocialMonitorSubscription>> GetAllAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<SocialMonitorSubscription>> GetForOwnerAsync(
+        string ownerId,
+        CancellationToken cancellationToken
+    );
+
+    Task SaveAsync(SocialMonitorSubscription subscription, CancellationToken cancellationToken);
+
+    Task DeleteAsync(string id, string ownerId, CancellationToken cancellationToken);
+}
+
+public sealed record SocialMonitorSubscription(
+    string Id,
+    string OwnerId,
+    bool Enabled,
+    int IntervalMinutes,
+    int AlertThreshold,
+    string? Platform,
+    string? Topic,
+    string? Search,
+    IReadOnlyDictionary<string, string> SourceUrls,
+    DateTimeOffset NextRunAt,
+    int? PreviousNegativeRate = null,
+    string? LastAlert = null,
+    DateTimeOffset? LastRunAt = null,
+    string? LastError = null
+);
+
+public interface IAuditActivityStore
+{
+    Task AppendAsync(AuditActivity activity, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<AuditActivity>> GetRecentAsync(
+        int count,
+        CancellationToken cancellationToken
+    );
+}
+
+public sealed record AuditActivity(
+    DateTimeOffset OccurredAt,
+    string ActorId,
+    string Method,
+    string Path,
+    int StatusCode
+);

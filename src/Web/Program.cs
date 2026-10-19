@@ -100,6 +100,7 @@ if (!isDesktopMode)
 }
 
 app.UseExceptionHandler(options => { });
+app.UseMiddleware<AnalisisSentimiento.Web.Infrastructure.AuditActivityMiddleware>();
 
 app.MapDefaultEndpoints();
 app.MapEndpoints(typeof(Program).Assembly);
@@ -129,7 +130,9 @@ try
 catch (IOException exception) when (isDesktopMode)
 {
     Console.Error.WriteLine($"No se pudo iniciar Sentia Global: {exception.Message}");
-    Console.Error.WriteLine("Cierra otras copias de la app o libera el puerto e inténtalo de nuevo.");
+    Console.Error.WriteLine(
+        "Cierra otras copias de la app o libera el puerto e inténtalo de nuevo."
+    );
     Environment.ExitCode = 1;
 }
 

@@ -53,6 +53,7 @@ internal class GetSocialCommentsQueryHandler(
                     ? analyzed
                     : SpanishSentimentAnalyzer.Analyze(draft.Text);
 
+                var insights = SocialTextInsightsAnalyzer.Analyze(draft.Text);
                 return new SocialComment(
                     draft.Id,
                     draft.Platform,
@@ -68,7 +69,9 @@ internal class GetSocialCommentsQueryHandler(
                     draft.Province,
                     draft.Canton,
                     draft.Parish,
-                    draft.Reactions
+                    draft.Reactions,
+                    insights,
+                    SocialTextInsightsAnalyzer.IsLikelySpam(draft.Text)
                 );
             })
             .Where(comment =>
@@ -84,6 +87,37 @@ internal class GetSocialCommentsQueryHandler(
             .OrderByDescending(comment => comment.PublishedAt)
             .ToArray();
 
+        var repeatedTexts = comments
+            .GroupBy(comment => Normalize(comment.Text), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+        var authorCounts = comments
+            .GroupBy(
+                comment => $"{comment.Platform}:{comment.AuthorHandle}",
+                StringComparer.OrdinalIgnoreCase
+            )
+            .ToDictionary(
+                group => group.Key,
+                group => group.Count(),
+                StringComparer.OrdinalIgnoreCase
+            );
+        var reviewedComments = comments
+            .Select(comment =>
+                comment with
+                {
+                    IsLikelyBot = SocialTextInsightsAnalyzer.IsLikelyAutomated(
+                        authorCounts[$"{comment.Platform}:{comment.AuthorHandle}"],
+                        repeatedTexts[Normalize(comment.Text)]
+                    ),
+                }
+            )
+            .ToArray();
+        var suppressedCount = reviewedComments.Count(comment =>
+            comment.IsLikelySpam || comment.IsLikelyBot
+        );
+        comments = reviewedComments
+            .Where(comment => !comment.IsLikelySpam && !comment.IsLikelyBot)
+            .ToArray();
+
         var summary = new SentimentSummary(
             comments.Length,
             comments.Count(comment => comment.Sentiment.Label == "positive"),
@@ -96,7 +130,16 @@ internal class GetSocialCommentsQueryHandler(
             summary,
             timeProvider.GetUtcNow(),
             fetchResult.DataSource,
-            fetchResult.Message
+            suppressedCount == 0
+                ? fetchResult.Message
+                : string.Join(
+                    " ",
+                    new[]
+                    {
+                        fetchResult.Message,
+                        $"Se excluyeron {suppressedCount} publicaciones con señales de spam o automatización.",
+                    }.Where(message => !string.IsNullOrWhiteSpace(message))
+                )
         );
     }
 
@@ -338,7 +381,10 @@ public record SocialComment(
     string? Province = null,
     string? Canton = null,
     string? Parish = null,
-    int? Reactions = null
+    int? Reactions = null,
+    SocialTextInsights? Insights = null,
+    bool IsLikelySpam = false,
+    bool IsLikelyBot = false
 );
 
 public record SentimentResult(string Label, string DisplayName, int Confidence);

@@ -1,8 +1,10 @@
 ﻿using AnalisisSentimiento.Application.Common.Interfaces;
+using AnalisisSentimiento.Domain.Constants;
 using AnalisisSentimiento.Infrastructure.Configuration;
 using AnalisisSentimiento.Infrastructure.Data;
 using AnalisisSentimiento.Infrastructure.Data.Interceptors;
 using AnalisisSentimiento.Infrastructure.Identity;
+using AnalisisSentimiento.Infrastructure.SocialListening;
 using AnalisisSentimiento.Infrastructure.SocialListening.Apify;
 using AnalisisSentimiento.Infrastructure.SocialListening.Configuration;
 using AnalisisSentimiento.Infrastructure.SocialListening.Sentiment;
@@ -46,7 +48,17 @@ public static class DependencyInjection
 
         builder.Services.AddAuthentication().AddBearerToken(IdentityConstants.BearerScheme);
 
-        builder.Services.AddAuthorizationBuilder();
+        builder
+            .Services.AddAuthorizationBuilder()
+            .AddPolicy(
+                "ObservatoryRead",
+                policy => policy.RequireRole(Roles.Viewer, Roles.Analyst, Roles.Administrator)
+            )
+            .AddPolicy(
+                "ObservatoryAnalyze",
+                policy => policy.RequireRole(Roles.Analyst, Roles.Administrator)
+            )
+            .AddPolicy("ManageUsers", policy => policy.RequireRole(Roles.Administrator));
 
         builder
             .Services.AddIdentityCore<ApplicationUser>()
@@ -56,6 +68,9 @@ public static class DependencyInjection
 
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<IApiCredentialStore, EncryptedFileApiCredentialStore>();
+        builder.Services.AddSingleton<ISocialMonitorStore, FileSocialMonitorStore>();
+        builder.Services.AddSingleton<IAuditActivityStore, FileAuditActivityStore>();
+        builder.Services.AddHostedService<ScheduledSocialMonitorService>();
         builder.Services.AddTransient<IIdentityService, IdentityService>();
 
         builder.Services.Configure<SocialListeningOptions>(

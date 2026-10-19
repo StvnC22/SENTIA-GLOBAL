@@ -7,7 +7,6 @@ const state = {
   comments: [],
   summary: null,
   platform: "global",
-  prompt: "",
   query: "",
   sentiment: "all",
   sort: "newest",
@@ -18,6 +17,8 @@ const state = {
   credentialMasks: {},
   jobs: {},
   history: [],
+  monitor: null,
+  monitorTimer: null,
   theme: "dark"
 };
 
@@ -35,6 +36,14 @@ const settingsPageCredentialFields = {
   tikTok: "settingsTiktokApiKey",
   x: "settingsXApiKey",
   artificialIntelligence: "settingsAiApiKey"
+};
+
+const promptInputIds = {
+  global: "promptInput",
+  instagram: "instagramPromptInput",
+  facebook: "facebookPromptInput",
+  tiktok: "tiktokPromptInput",
+  x: "xPromptInput"
 };
 
 const configuredMask = "••••••••••••••••";
@@ -243,13 +252,80 @@ function commentsInPeriod() {
   });
 }
 
+function normalizeSearchText(value) {
+  return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
+}
+
+function matchesBooleanQuery(value, query) {
+  const source = normalizeSearchText(value);
+  const tokens = (query.match(/"[^"]+"|\(|\)|\b(?:AND|OR|NOT)\b|[^\s()]+/gi) || [])
+    .map(token => token.replace(/^"|"$/g, ""));
+  if (!tokens.length) return true;
+  let cursor = 0;
+  const term = () => {
+    if (tokens[cursor]?.toLocaleUpperCase("es") === "NOT") {
+      cursor += 1;
+      return !term();
+    }
+    if (tokens[cursor] === "(") {
+      cursor += 1;
+      const result = expression();
+      if (tokens[cursor] !== ")") throw new Error("Paréntesis sin cerrar");
+      cursor += 1;
+      return result;
+    }
+    const value = tokens[cursor++];
+    if (!value || [")", "AND", "OR"].includes(value.toLocaleUpperCase("es"))) throw new Error("Falta un término");
+    return source.includes(normalizeSearchText(value));
+  };
+  const conjunction = () => {
+    let result = term();
+    while (tokens[cursor]?.toLocaleUpperCase("es") === "AND") {
+      cursor += 1;
+      const next = term();
+      result = result && next;
+    }
+    return result;
+  };
+  const expression = () => {
+    let result = conjunction();
+    while (tokens[cursor]?.toLocaleUpperCase("es") === "OR") {
+      cursor += 1;
+      const next = conjunction();
+      result = result || next;
+    }
+    return result;
+  };
+  try {
+    const result = expression();
+    if (cursor !== tokens.length) throw new Error("Operador no válido");
+    return result;
+  } catch {
+    // Keep search useful while the user is editing an incomplete expression.
+    return source.includes(normalizeSearchText(query.replace(/\b(?:AND|OR|NOT)\b|[()\"]/gi, " ").trim()));
+  }
+}
+
+function matchesAdvancedFilters(comment) {
+  const date = new Date(comment.publishedAt);
+  const from = document.getElementById("dateFromFilter")?.value;
+  const to = document.getElementById("dateToFilter")?.value;
+  if (from && date < new Date(`${from}T00:00:00`)) return false;
+  if (to && date > new Date(`${to}T23:59:59.999`)) return false;
+  for (const [field, key] of [["provinceFilter", "province"], ["cantonFilter", "canton"], ["parishFilter", "parish"]]) {
+    const expected = normalizeSearchText(document.getElementById(field)?.value?.trim());
+    if (expected && !normalizeSearchText(comment[key]).includes(expected)) return false;
+  }
+  return true;
+}
+
 function filterComments(platformFilter = "global", sentimentFilter = "all", searchQuery = "", sortFilter = "newest") {
   const searchTerm = searchQuery.trim().toLocaleLowerCase("es");
   const normalizedFilter = normalizePlatform(platformFilter);
   return commentsInPeriod()
     .filter(item => normalizedFilter === "global" || normalizePlatform(item.platform) === normalizedFilter)
     .filter(item => sentimentFilter === "all" || item.sentiment.label === sentimentFilter)
-    .filter(item => !searchTerm || `${item.authorName} ${item.authorHandle} ${item.text} ${item.postTitle}`.toLocaleLowerCase("es").includes(searchTerm))
+    .filter(item => (!searchTerm || matchesBooleanQuery(`${item.authorName} ${item.authorHandle} ${item.text} ${item.postTitle}`, searchQuery)) && matchesAdvancedFilters(item))
     .sort((left, right) => {
       if (sortFilter === "oldest") return new Date(left.publishedAt) - new Date(right.publishedAt);
       if (sortFilter === "post") return left.postTitle.localeCompare(right.postTitle, "es");
@@ -444,6 +520,173 @@ function renderGlobalView() {
   }
 
   renderSemanticCloud("semanticCloud", "cloudMeta", platformFilter === "all" ? "global" : platformFilter);
+  renderExecutiveSummary(comments);
+}
+
+function renderExecutiveSummary(comments = state.comments) {
+  const summary = document.getElementById("executiveSummary");
+  const ranking = document.getElementById("locationRanking");
+  if (!summary) return;
+  if (!comments.length) {
+    summary.textContent = "Analiza comentarios para generar un resumen de hallazgos.";
+    if (ranking) ranking.textContent = "Las fuentes conectadas no proporcionan ubicación geográfica para este análisis.";
+    return;
+  }
+  const counts = Object.fromEntries(["positive", "neutral", "negative"].map(label => [label, comments.filter(c => c.sentiment?.label === label).length]));
+  const leader = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const topNet = Object.entries(comments.reduce((result, c) => { const p = normalizePlatform(c.platform); result[p] = (result[p] || 0) + 1; return result; }, {})).sort((a, b) => b[1] - a[1])[0];
+  const words = new Map();
+  for (const comment of comments) for (const word of normalizeSearchText(`${comment.text} ${comment.postTitle}`).match(/[a-zñ#][a-zñ0-9_]{3,}/g) || []) {
+    if (!semanticStopWords.has(word.replace(/^#/, ""))) words.set(word, (words.get(word) || 0) + 1);
+  }
+  const topics = [...words.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([word]) => `“${word}”`);
+  summary.textContent = `Se analizaron ${comments.length} publicaciones y comentarios. Predomina el sentimiento ${({ positive: "positivo", neutral: "neutro", negative: "negativo" })[leader[0]]} (${leader[1]}, ${percent(leader[1], comments.length)}%). ${platformLabel(topNet?.[0] || "global")} concentra más menciones (${topNet?.[1] || 0}). Temas frecuentes: ${topics.join(", ") || "sin términos destacados"}.`;
+  const locations = new Map();
+  for (const comment of comments) {
+    const location = [comment.parish, comment.canton, comment.province].filter(Boolean).join(", ");
+    if (location) locations.set(location, (locations.get(location) || 0) + 1);
+  }
+  if (ranking) ranking.textContent = locations.size
+    ? `Menciones por ubicación: ${[...locations.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => `${name} (${count})`).join(" · ")}`
+    : "Las fuentes conectadas no proporcionan ubicación geográfica para este análisis.";
+}
+
+function currentReportComments() {
+  return filterComments(document.getElementById("globalPlatformSelect")?.value || "all", state.sentiment, document.getElementById("searchInput")?.value || "", state.sort);
+}
+
+function readSavedSearches() {
+  try { return JSON.parse(localStorage.getItem("sentia-saved-searches-v1") || "[]"); } catch { return []; }
+}
+
+function renderSavedSearches() {
+  const select = document.getElementById("savedSearchSelect");
+  if (!select) return;
+  const selected = select.value;
+  const searches = readSavedSearches();
+  select.innerHTML = '<option value="">Selecciona una búsqueda</option>' + searches.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("");
+  if (searches.some(item => item.id === selected)) select.value = selected;
+}
+
+function saveCurrentSearch() {
+  const name = document.getElementById("savedSearchName")?.value?.trim();
+  if (!name) { showToast("Escribe un nombre para guardar la búsqueda"); return; }
+  const searches = readSavedSearches();
+  const record = {
+    id: `search_${Date.now()}`,
+    name,
+    query: document.getElementById("searchInput")?.value || "",
+    topic: document.getElementById("topicInput")?.value || "",
+    platform: document.getElementById("globalPlatformSelect")?.value || "all",
+    sentiment: state.sentiment,
+    sort: state.sort,
+    from: document.getElementById("dateFromFilter")?.value || "",
+    to: document.getElementById("dateToFilter")?.value || "",
+    province: document.getElementById("provinceFilter")?.value || "",
+    canton: document.getElementById("cantonFilter")?.value || "",
+    parish: document.getElementById("parishFilter")?.value || ""
+  };
+  localStorage.setItem("sentia-saved-searches-v1", JSON.stringify([record, ...searches].slice(0, 50)));
+  renderSavedSearches();
+  document.getElementById("savedSearchSelect").value = record.id;
+  showToast("Búsqueda guardada en este dispositivo");
+}
+
+function applySavedSearch(id) {
+  const saved = readSavedSearches().find(item => item.id === id);
+  if (!saved) return;
+  const setValue = (elementId, value) => { const element = document.getElementById(elementId); if (element) element.value = value || ""; };
+  setValue("searchInput", saved.query);
+  setValue("topicInput", saved.topic);
+  setValue("globalPlatformSelect", saved.platform);
+  setValue("dateFromFilter", saved.from);
+  setValue("dateToFilter", saved.to);
+  setValue("provinceFilter", saved.province);
+  setValue("cantonFilter", saved.canton);
+  setValue("parishFilter", saved.parish);
+  if (saved.sentiment !== state.sentiment) {
+    state.sentiment = saved.sentiment;
+    const option = document.querySelector(`.fluent-select[data-select="sentiment"] .select-option[data-value="${saved.sentiment}"]`);
+    if (option) {
+      option.parentElement.querySelectorAll(".select-option").forEach(item => item.setAttribute("aria-selected", String(item === option)));
+      option.closest(".fluent-select").querySelector("[data-select-label]").textContent = option.querySelector("span").textContent;
+    }
+  }
+  state.sort = saved.sort || "newest";
+  renderGlobalView();
+}
+
+function exportExcelReport() {
+  const comments = currentReportComments();
+  const escape = value => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  const rows = [["Red", "Usuario", "Comentario", "Publicación", "Sentimiento", "Confianza", "Fecha", "URL"], ...comments.map(c => [c.platform, c.authorName, c.text, c.postTitle, c.sentiment?.displayName, `${c.sentiment?.confidence ?? ""}%`, c.publishedAt, c.postUrl])];
+  const workbook = `<html><meta charset="utf-8"><table>${rows.map(row => `<tr>${row.map(cell => `<td>${escape(cell)}</td>`).join("")}</tr>`).join("")}</table></html>`;
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob(["\ufeff", workbook], { type: "application/vnd.ms-excel;charset=utf-8" }));
+  link.download = `sentia-global-${Date.now()}.xls`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function printExecutiveReport() {
+  const comments = currentReportComments();
+  const reportWindow = window.open("", "_blank");
+  if (!reportWindow) { showToast("Permite las ventanas emergentes para guardar el informe PDF"); return; }
+  const summary = document.getElementById("executiveSummary")?.textContent || "Sin resumen disponible.";
+  const rows = comments.map(c => `<tr><td>${escapeHtml(c.platform)}</td><td>${escapeHtml(c.text)}</td><td>${escapeHtml(c.sentiment?.displayName)}</td><td>${escapeHtml(c.publishedAt)}</td><td><a href="${escapeHtml(c.postUrl)}">Abrir publicación</a></td></tr>`).join("");
+  reportWindow.document.write(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Informe Sentia Global</title><style>body{font:14px Arial;margin:32px;color:#172033}h1{color:#075985}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccd3dd;padding:7px;text-align:left;vertical-align:top}th{background:#e8f2fa}p{line-height:1.5}</style><h1>Observatorio Territorial · Análisis de sentimientos</h1><p>${escapeHtml(summary)}</p><p>Comentarios incluidos: ${comments.length}</p><table><thead><tr><th>Red</th><th>Comentario</th><th>Sentimiento</th><th>Fecha</th><th>Fuente</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></html>`);
+  reportWindow.document.close();
+}
+
+function loadMonitorSettings() {
+  try { state.monitor = JSON.parse(localStorage.getItem("sentia-monitor-v1") || "null"); } catch { state.monitor = null; }
+  const status = document.getElementById("monitorStatus");
+  const button = document.getElementById("toggleMonitorButton");
+  const interval = document.getElementById("monitorInterval");
+  const threshold = document.getElementById("alertThreshold");
+  if (state.monitor && interval) interval.value = String(state.monitor.intervalMinutes || 60);
+  if (state.monitor && threshold) threshold.value = String(state.monitor.threshold || 10);
+  if (status) status.textContent = state.monitor?.enabled ? "Activo" : "Desactivado";
+  if (button) button.textContent = state.monitor?.enabled ? "Desactivar monitoreo" : "Activar monitoreo";
+  if (state.monitor?.enabled) startMonitorTimer();
+}
+
+function startMonitorTimer() {
+  clearInterval(state.monitorTimer);
+  state.monitorTimer = setInterval(() => {
+    if (!state.monitor?.enabled || Date.now() < state.monitor.nextRunAt || getActiveJob("global")) return;
+    state.monitor.nextRunAt = Date.now() + state.monitor.intervalMinutes * 60_000;
+    localStorage.setItem("sentia-monitor-v1", JSON.stringify(state.monitor));
+    startAnalysisJob({ targetPlatform: "global", notify: true, force: true });
+  }, 15_000);
+}
+
+function toggleMonitor() {
+  const enabled = !state.monitor?.enabled;
+  state.monitor = {
+    enabled,
+    intervalMinutes: Number(document.getElementById("monitorInterval")?.value || 60),
+    threshold: Number(document.getElementById("alertThreshold")?.value || 10),
+    previousNegativeRate: state.comments.length ? percent(state.comments.filter(c => c.sentiment?.label === "negative").length, state.comments.length) : null,
+    nextRunAt: Date.now() + Number(document.getElementById("monitorInterval")?.value || 60) * 60_000
+  };
+  localStorage.setItem("sentia-monitor-v1", JSON.stringify(state.monitor));
+  loadMonitorSettings();
+  showToast(enabled ? "Monitoreo activado; se ejecuta mientras el panel está abierto" : "Monitoreo desactivado");
+}
+
+function checkMonitorAlert(comments) {
+  if (!state.monitor?.enabled || !comments.length) return;
+  const rate = percent(comments.filter(c => c.sentiment?.label === "negative").length, comments.length);
+  const previous = state.monitor.previousNegativeRate;
+  state.monitor.previousNegativeRate = rate;
+  localStorage.setItem("sentia-monitor-v1", JSON.stringify(state.monitor));
+  if (previous !== null && rate - previous >= state.monitor.threshold) {
+    const alert = document.getElementById("monitorAlert");
+    const message = `Alerta: el sentimiento negativo subió ${rate - previous} puntos porcentuales (${previous}% → ${rate}%).`;
+    if (alert) alert.textContent = message;
+    showToast(message);
+  }
 }
 
 function renderCommentRow(comment, showNetworkBadge = true) {
@@ -561,7 +804,7 @@ function loadHistory() {
   }
 }
 
-function saveHistoryRecord(dashboard, assignedPlatforms, promptText, durationSeconds = 0) {
+function saveHistoryRecord(dashboard, assignedPlatforms, promptText, prompts, durationSeconds = 0) {
   if (!dashboard) return;
   const analyzedComments = (dashboard.comments || []).map(comment => ({
     ...comment,
@@ -588,6 +831,7 @@ function saveHistoryRecord(dashboard, assignedPlatforms, promptText, durationSec
       assignedPlatforms.map(item => [normalizePlatform(item.platform), item.url])
     ),
     prompt: promptText || "",
+    prompts: prompts || {},
     durationSeconds: Math.max(0, Number(durationSeconds) || 0),
     durationLabel: formatAnalysisDuration(durationSeconds),
     totalComments: analyzedComments.length,
@@ -758,9 +1002,19 @@ window.reloadHistoryQuery = function(id) {
     syncSourceInput(net, url || "");
   }
 
-  if (record.prompt) {
-    state.prompt = record.prompt;
-    syncPromptInputs(record.prompt);
+  if (record.prompts && typeof record.prompts === "object") {
+    for (const [scope, prompt] of Object.entries(record.prompts)) {
+      if (Object.hasOwn(promptInputIds, scope) && typeof prompt === "string") {
+        syncPromptInput(scope, prompt);
+      }
+    }
+  } else if (record.prompt) {
+    for (const platform of record.platforms || []) {
+      const normalizedPlatform = normalizePlatform(platform);
+      if (Object.hasOwn(promptInputIds, normalizedPlatform)) {
+        syncPromptInput(normalizedPlatform, record.prompt);
+      }
+    }
   }
 
   // Los registros nuevos contienen el resultado completo. Restaurarlo evita
@@ -1042,11 +1296,12 @@ function isDirectPostUrl(platform, url) {
   return false;
 }
 
-async function fetchPlatformComments(item, { force, signal, prompt }) {
+async function fetchPlatformComments(item, { force, signal, prompt, topic }) {
   const query = new URLSearchParams();
   query.set("platform", item.platform);
   query.set(`${item.platform}Url`, item.url);
   if (prompt) query.set("prompt", prompt);
+  if (topic) query.set("topic", topic);
   if (force || isDirectPostUrl(item.platform, item.url)) {
     query.set("refresh", "true");
   }
@@ -1071,6 +1326,10 @@ function getActiveJob(platform) {
 
 function getRunningJobs() {
   return Object.values(state.jobs).filter(j => j.status === "running");
+}
+
+function getPromptForPlatform(platform) {
+  return state.prompts[platform].trim() || state.prompts.global.trim();
 }
 
 function cancelAnalysisJob(platform) {
@@ -1148,7 +1407,16 @@ function startAnalysisJob({ targetPlatform = "global", notify = false, force = f
     id: `job_${targetPlatform}_${Date.now()}`,
     platform: targetPlatform,
     assignedPlatforms: assignedPlatforms,
-    prompt: state.prompt.trim(),
+    prompts: Object.fromEntries(
+      assignedPlatforms.map(item => [
+        item.platform,
+        getPromptForPlatform(item.platform)
+      ])
+    ),
+    prompt: targetPlatform === "global"
+      ? state.prompts.global.trim()
+      : getPromptForPlatform(targetPlatform),
+    topic: document.getElementById("topicInput")?.value.trim() || "",
     force: force,
     status: "running",
     startedAt: Date.now(),
@@ -1205,7 +1473,8 @@ async function executeJobAsync(job) {
         const dashboard = await fetchPlatformComments(item, {
           force: job.force,
           signal: signal,
-          prompt: job.prompt
+          prompt: job.prompts[item.platform],
+          topic: job.topic
         });
 
         if (signal.aborted || job.status === "cancelled") {
@@ -1267,7 +1536,9 @@ async function executeJobAsync(job) {
       message: messages.join(" · ")
     };
 
-  saveHistoryRecord(job.results, job.assignedPlatforms, job.prompt, job.elapsedSeconds);
+    checkMonitorAlert(state.comments);
+
+  saveHistoryRecord(job.results, job.assignedPlatforms, job.prompt, job.prompts, job.elapsedSeconds);
 
     // Discreet Completion Notification when user is on a DIFFERENT view:
     const isCurrentModuleView = (state.activeNav === job.platform) || (state.activeNav === "global" && job.platform === "global");
@@ -1312,16 +1583,22 @@ function syncSourceInput(platform, value) {
   try { localStorage.setItem("sentia-global-sources-v1", JSON.stringify(state.sources)); } catch (e) {}
 }
 
-function syncPromptInputs(value) {
-  state.prompt = value;
-  const inputs = [
-    document.getElementById("promptInput"),
-    document.getElementById("instagramPromptInput"),
-    document.getElementById("facebookPromptInput"),
-    document.getElementById("tiktokPromptInput"),
-    document.getElementById("xPromptInput")
-  ];
-  inputs.forEach(el => { if (el && el.value !== value) el.value = value; });
+function syncPromptInput(scope, value) {
+  state.prompts[scope] = value;
+  const input = document.getElementById(promptInputIds[scope]);
+  if (input && input.value !== value) input.value = value;
+  try { localStorage.setItem("sentia-global-prompts-v1", JSON.stringify(state.prompts)); } catch (e) {}
+}
+
+function loadSavedPrompts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("sentia-global-prompts-v1") || "{}");
+    for (const scope of Object.keys(promptInputIds)) {
+      if (typeof saved[scope] === "string") {
+        syncPromptInput(scope, saved[scope]);
+      }
+    }
+  } catch (e) {}
 }
 
 function loadSavedSources() {
@@ -1399,12 +1676,12 @@ function initEventHandlers() {
   });
 
   // Prompt inputs binding
-  ["promptInput", "instagramPromptInput", "facebookPromptInput", "tiktokPromptInput", "xPromptInput"].forEach(id => {
+  for (const [scope, id] of Object.entries(promptInputIds)) {
     const input = document.getElementById(id);
     if (input) {
-      input.addEventListener("input", e => syncPromptInputs(e.target.value));
+      input.addEventListener("input", e => syncPromptInput(scope, e.target.value));
     }
-  });
+  }
 
   // Analyze Global Button
   const analyzeBtn = document.getElementById("analyzeButton");
@@ -1430,15 +1707,32 @@ function initEventHandlers() {
     globalPlatformSelect.addEventListener("change", () => renderGlobalView());
   }
 
+  ["dateFromFilter", "dateToFilter", "provinceFilter", "cantonFilter", "parishFilter"].forEach(id => {
+    document.getElementById(id)?.addEventListener("input", () => renderGlobalView());
+  });
+
+  document.getElementById("exportExcelButton")?.addEventListener("click", exportExcelReport);
+  document.getElementById("exportPdfButton")?.addEventListener("click", printExecutiveReport);
+  document.getElementById("toggleMonitorButton")?.addEventListener("click", toggleMonitor);
+  document.getElementById("saveSearchButton")?.addEventListener("click", saveCurrentSearch);
+  document.getElementById("savedSearchSelect")?.addEventListener("change", event => applySavedSearch(event.target.value));
+  const topicInput = document.getElementById("topicInput");
+  if (topicInput) {
+    topicInput.value = localStorage.getItem("sentia-global-topic-v1") || "";
+    topicInput.addEventListener("input", () => localStorage.setItem("sentia-global-topic-v1", topicInput.value));
+  }
+
   // CSV Export Buttons
   document.querySelectorAll(".export-button").forEach(btn => {
     btn.addEventListener("click", () => {
       const platform = btn.dataset.platform || (state.activeNav === "global" ? "global" : state.activeNav);
-      const comments = filterComments(platform, state.sentiment, state.query, state.sort);
+      const comments = platform === "global"
+        ? currentReportComments()
+        : filterComments(platform, state.sentiment, document.querySelector(`.table-search-input[data-platform="${platform}"]`)?.value || "", state.sort);
       
       const rows = [
-        ["Red", "Usuario", "Comentario", "Publicación", "Emoción", "Confianza", "Fecha"],
-        ...comments.map(item => [item.platform, item.authorName, item.text, item.postTitle, item.sentiment.displayName, `${item.sentiment.confidence}%`, item.publishedAt])
+        ["Red", "Usuario", "Comentario", "URL comentario", "Publicación", "URL publicación", "Emoción", "Confianza", "Fecha"],
+        ...comments.map(item => [item.platform, item.authorName, item.text, item.commentUrl, item.postTitle, item.postUrl, item.sentiment.displayName, `${item.sentiment.confidence}%`, item.publishedAt])
       ];
 
       const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
@@ -1623,7 +1917,10 @@ document.addEventListener("DOMContentLoaded", () => {
   initEventHandlers();
   initializeFluentSelects();
   loadSavedSources();
+  loadSavedPrompts();
   loadHistory();
+  loadMonitorSettings();
+  renderSavedSearches();
   refreshCredentialStatus();
 
   // La aplicación inicia en reposo. El análisis solo comienza cuando el

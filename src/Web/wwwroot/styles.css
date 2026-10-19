@@ -187,6 +187,19 @@ html, body {
 }
 
 .history-platform-breakdown { display: grid; gap: .55rem; margin-top: .55rem; }
+.advanced-search-panel { display: grid; gap: .8rem; padding: .9rem 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-input); }
+.advanced-search-panel summary { color: var(--text-primary); font-weight: 700; cursor: pointer; }
+.filter-help { color: var(--text-muted); font-size: .82rem; line-height: 1.5; }
+.filter-help code { color: var(--accent-cyan); }
+.advanced-filter-grid { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: .75rem; }
+.saved-search-controls { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; }
+.saved-search-controls label { display: grid; flex: 1 1 200px; gap: .35rem; color: var(--text-muted); font-size: .75rem; font-weight: 700; }
+.advanced-filter-grid label, .monitor-controls label { display: grid; gap: .35rem; color: var(--text-muted); font-size: .75rem; font-weight: 700; }
+.report-actions, .monitor-controls { display: flex; flex-wrap: wrap; align-items: end; gap: .7rem; }
+.executive-summary { line-height: 1.65; color: var(--text-secondary); }
+.location-ranking { color: var(--text-muted); font-size: .82rem; }
+.monitor-controls label { min-width: 180px; }
+.monitor-alert { color: var(--sentiment-negative); font-weight: 700; }
 .history-platform-row { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem .8rem; padding: .65rem .75rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-input); }
 .history-platform-row > strong { min-width: 82px; color: var(--text-primary); }
 
@@ -1877,6 +1890,8 @@ html, body {
 
   .credential-field-card.wide { grid-column: span 1; }
 
+  .advanced-filter-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+
   .global-actions-row {
     grid-template-columns: 1fr;
   }
@@ -1900,6 +1915,8 @@ html, body {
   .metric-grid, .metric-grid.minified {
     grid-template-columns: 1fr;
   }
+
+  .advanced-filter-grid { grid-template-columns: 1fr; }
 
   .shortcuts-grid {
     grid-template-columns: 1fr;

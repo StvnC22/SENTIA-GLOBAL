@@ -86,6 +86,12 @@
           <span class="nav-count" data-sidebar-count="x">0</span>
         </button>
 
+        <button class="nav-item" data-nav="global" type="button" title="Observatorio territorial">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span>
+          <span class="nav-label">Observatorio global</span>
+          <span class="nav-count" data-sidebar-count="global">0</span>
+        </button>
+
         <div class="nav-section-title">GESTIÓN & HISTORIAL</div>
 
         <button class="nav-item" data-nav="history" type="button" title="Historial">
@@ -847,9 +853,8 @@
         <!-- ========================================== -->
         <!-- VIEW 6: MÓDULO TODAS LAS REDES (GLOBAL)    -->
         <!-- ========================================== -->
-        <!-- El antiguo módulo consolidado se conserva como plantilla histórica,
-             pero ya no se monta en la interfaz: cada red tiene su propio módulo. -->
-        <template id="view-global">
+        <!-- Observatorio consolidado y herramientas de consulta territorial -->
+        <section class="view-panel" id="view-global">
           <div class="panel-header">
             <div>
               <span class="eyebrow-badge">CONSOLIDADO MULTI-RED</span>
@@ -904,6 +909,10 @@
             </div>
 
             <div class="global-actions-row">
+              <div class="prompt-wrapper">
+                <label for="topicInput" class="input-label">Tema de búsqueda (opcional)</label>
+                <input id="topicInput" class="modern-input" type="search" maxlength="200" placeholder="Ej. educación, seguridad, #ULEAM">
+              </div>
               <div class="prompt-wrapper">
                 <label for="promptInput" class="input-label">Prompt personalizado global (opcional)</label>
                 <textarea id="promptInput" class="modern-textarea" rows="2" placeholder="Deja vacío para aplicar el criterio recomendado de Sentia Global."></textarea>
@@ -998,6 +1007,23 @@
               </div>
             </div>
 
+            <details class="advanced-search-panel">
+              <summary>Búsqueda avanzada y filtros</summary>
+              <p class="filter-help">Usa AND, OR, NOT, hashtags y comillas. Ejemplo: <code>(#ULEAM OR universidad) AND NOT spam</code>. Los filtros geográficos requieren que la fuente incluya esa metadata.</p>
+              <div class="advanced-filter-grid">
+                <label>Desde<input id="dateFromFilter" class="modern-input" type="date"></label>
+                <label>Hasta<input id="dateToFilter" class="modern-input" type="date"></label>
+                <label>Provincia<input id="provinceFilter" class="modern-input" type="search" placeholder="Ej. Manabí"></label>
+                <label>Cantón<input id="cantonFilter" class="modern-input" type="search" placeholder="Ej. Manta"></label>
+                <label>Parroquia<input id="parishFilter" class="modern-input" type="search" placeholder="Ej. Tarqui"></label>
+              </div>
+              <div class="saved-search-controls">
+                <label>Nombre de búsqueda<input id="savedSearchName" class="modern-input" type="text" maxlength="80" placeholder="Ej. Opiniones sobre la ULEAM"></label>
+                <label>Búsquedas guardadas<select id="savedSearchSelect" class="modern-select"><option value="">Selecciona una búsqueda</option></select></label>
+                <button id="saveSearchButton" class="secondary-button" type="button">Guardar búsqueda actual</button>
+              </div>
+            </details>
+
             <div class="table-responsive">
               <table class="comments-table">
                 <thead><tr><th>Red</th><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
@@ -1016,6 +1042,22 @@
             </footer>
           </div>
 
+          <div class="insights-grid single-insight">
+            <article class="glass-card executive-report-card">
+              <div class="card-header"><div><span class="insight-kicker">INFORME AUTOMÁTICO</span><h3>Resumen ejecutivo</h3></div>
+                <div class="report-actions"><button class="secondary-button" id="exportExcelButton" type="button">Exportar Excel</button><button class="secondary-button" id="exportPdfButton" type="button">Guardar PDF</button></div>
+              </div>
+              <p id="executiveSummary" class="executive-summary">Analiza comentarios para generar un resumen de hallazgos.</p>
+              <div id="locationRanking" class="location-ranking"></div>
+            </article>
+            <article class="glass-card monitoring-card">
+              <div class="card-header"><div><span class="insight-kicker">SEGUIMIENTO</span><h3>Monitoreo periódico</h3></div><span id="monitorStatus" class="card-tag">Desactivado</span></div>
+              <p class="filter-help">La programación se ejecuta mientras el panel permanece abierto.</p>
+              <div class="monitor-controls"><label>Frecuencia<select id="monitorInterval" class="modern-select"><option value="15">Cada 15 minutos</option><option value="60">Cada hora</option><option value="360">Cada 6 horas</option><option value="1440">Cada día</option></select></label><label>Alerta si negativos suben<input id="alertThreshold" class="modern-input" type="number" min="1" max="100" value="10"> puntos porcentuales</label><button id="toggleMonitorButton" class="primary-button" type="button">Activar monitoreo</button></div>
+              <p id="monitorAlert" class="monitor-alert" role="status" aria-live="polite"></p>
+            </article>
+          </div>
+
           <!-- Global Semantic Cloud & Calendar -->
           <div class="insights-grid single-insight">
             <div class="glass-card">
@@ -1027,7 +1069,7 @@
             </div>
 
           </div>
-        </template>
+        </section>
 
 
         <!-- ========================================== -->

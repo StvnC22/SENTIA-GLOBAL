@@ -618,14 +618,71 @@ function applySavedSearch(id) {
 
 function exportExcelReport() {
   const comments = currentReportComments();
-  const escape = value => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const rows = [["Red", "Usuario", "Comentario", "Publicación", "Sentimiento", "Confianza", "Emoción", "Temas", "Aspectos", "Entidades", "Reacciones", "Fecha", "URL"], ...comments.map(c => [c.platform, c.authorName, c.text, c.postTitle, c.sentiment?.displayName, `${c.sentiment?.confidence ?? ""}%`, c.insights?.emotion || "", (c.insights?.topics || []).join("; "), (c.insights?.aspects || []).join("; "), (c.insights?.entities || []).join("; "), c.reactions ?? "", c.publishedAt, c.postUrl])];
-  const workbook = `<html><meta charset="utf-8"><table>${rows.map(row => `<tr>${row.map(cell => `<td>${escape(cell)}</td>`).join("")}</tr>`).join("")}</table></html>`;
+  const columnName = index => {
+    let name = "";
+    for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26)) name = String.fromCharCode(65 + ((value - 1) % 26)) + name;
+    return name;
+  };
+  const escapeXml = value => String(value ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
+  const worksheetRows = rows.map((row, rowIndex) => `<row r="${rowIndex + 1}">${row.map((value, columnIndex) => {
+    const reference = `${columnName(columnIndex)}${rowIndex + 1}`;
+    if (typeof value === "number") return `<c r="${reference}"><v>${value}</v></c>`;
+    return `<c r="${reference}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
+  }).join("")}</row>`).join("");
+  const files = [
+    ["[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],
+    ["_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ["xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Observatorio" sheetId="1" r:id="rId1"/></sheets></workbook>'],
+    ["xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'],
+    ["xl/worksheets/sheet1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${worksheetRows}</sheetData></worksheet>`]
+  ];
+  const encoder = new TextEncoder();
+  const crcTable = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let bit = 0; bit < 8; bit++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    crcTable[n] = c >>> 0;
+  }
+  const crc32 = bytes => {
+    let crc = 0xFFFFFFFF;
+    for (const byte of bytes) crc = crcTable[(crc ^ byte) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  };
+  const write16 = (view, offset, value) => view.setUint16(offset, value, true);
+  const write32 = (view, offset, value) => view.setUint32(offset, value >>> 0, true);
+  const localParts = [];
+  const directoryParts = [];
+  let offset = 0;
+  for (const [name, content] of files) {
+    const nameBytes = encoder.encode(name);
+    const data = encoder.encode(content);
+    const checksum = crc32(data);
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    write32(localView, 0, 0x04034B50); write16(localView, 4, 20); write16(localView, 6, 0x0800); write16(localView, 8, 0);
+    write32(localView, 14, checksum); write32(localView, 18, data.length); write32(localView, 22, data.length); write16(localView, 26, nameBytes.length); write16(localView, 28, 0);
+    localHeader.set(nameBytes, 30);
+    localParts.push(localHeader, data);
+    const directory = new Uint8Array(46 + nameBytes.length);
+    const directoryView = new DataView(directory.buffer);
+    write32(directoryView, 0, 0x02014B50); write16(directoryView, 4, 20); write16(directoryView, 6, 20); write16(directoryView, 8, 0x0800); write16(directoryView, 10, 0);
+    write32(directoryView, 16, checksum); write32(directoryView, 20, data.length); write32(directoryView, 24, data.length); write16(directoryView, 28, nameBytes.length); write16(directoryView, 30, 0); write16(directoryView, 32, 0); write16(directoryView, 34, 0); write16(directoryView, 36, 0); write32(directoryView, 38, 0); write32(directoryView, 42, offset);
+    directory.set(nameBytes, 46);
+    directoryParts.push(directory);
+    offset += localHeader.length + data.length;
+  }
+  const directorySize = directoryParts.reduce((total, part) => total + part.length, 0);
+  const endRecord = new Uint8Array(22);
+  const endView = new DataView(endRecord.buffer);
+  write32(endView, 0, 0x06054B50); write16(endView, 4, 0); write16(endView, 6, 0); write16(endView, 8, files.length); write16(endView, 10, files.length); write32(endView, 12, directorySize); write32(endView, 16, offset); write16(endView, 20, 0);
+  const archive = new Blob([...localParts, ...directoryParts, endRecord], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const link = document.createElement("a");
-  link.href = URL.createObjectURL(new Blob(["\ufeff", workbook], { type: "application/vnd.ms-excel;charset=utf-8" }));
-  link.download = `sentia-global-${Date.now()}.xls`;
+  const downloadUrl = URL.createObjectURL(archive);
+  link.href = downloadUrl;
+  link.download = `sentia-global-${Date.now()}.xlsx`;
   link.click();
-  URL.revokeObjectURL(link.href);
+  setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
 }
 
 function printExecutiveReport() {

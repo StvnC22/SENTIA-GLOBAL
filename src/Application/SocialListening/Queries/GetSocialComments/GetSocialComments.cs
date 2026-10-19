@@ -87,6 +87,13 @@ internal class GetSocialCommentsQueryHandler(
             .OrderByDescending(comment => comment.PublishedAt)
             .ToArray();
 
+        var uniqueComments = comments
+            .GroupBy(GetDeduplicationKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+        var duplicateCount = comments.Length - uniqueComments.Length;
+        comments = uniqueComments;
+
         var repeatedTexts = comments
             .GroupBy(comment => Normalize(comment.Text), StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
@@ -130,14 +137,19 @@ internal class GetSocialCommentsQueryHandler(
             summary,
             timeProvider.GetUtcNow(),
             fetchResult.DataSource,
-            suppressedCount == 0
+            suppressedCount == 0 && duplicateCount == 0
                 ? fetchResult.Message
                 : string.Join(
                     " ",
                     new[]
                     {
                         fetchResult.Message,
-                        $"Se excluyeron {suppressedCount} publicaciones con señales de spam o automatización.",
+                        suppressedCount > 0
+                            ? $"Se excluyeron {suppressedCount} publicaciones con señales de spam o automatización."
+                            : null,
+                        duplicateCount > 0
+                            ? $"Se eliminaron {duplicateCount} comentarios duplicados."
+                            : null,
                     }.Where(message => !string.IsNullOrWhiteSpace(message))
                 )
         );
@@ -231,6 +243,21 @@ internal class GetSocialCommentsQueryHandler(
                 (builder, character) => builder.Append(char.ToLowerInvariant(character))
             )
             .ToString();
+
+    private static string GetDeduplicationKey(SocialComment comment)
+    {
+        if (Uri.TryCreate(comment.CommentUrl, UriKind.Absolute, out var commentUri))
+        {
+            var canonicalUri = new UriBuilder(commentUri)
+            {
+                Query = string.Empty,
+                Fragment = string.Empty,
+            }.Uri;
+            return $"{comment.Platform}:{canonicalUri.AbsoluteUri}";
+        }
+
+        return $"{comment.Platform}:{comment.AuthorHandle}:{comment.PostUrl}:{comment.PublishedAt:O}:{Normalize(comment.Text)}";
+    }
 
     private static bool MatchesLocation(string? actual, string? expected) =>
         string.IsNullOrWhiteSpace(expected)

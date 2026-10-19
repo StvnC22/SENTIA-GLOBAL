@@ -83,8 +83,9 @@ public class ApifySocialCommentProviderTests
         var provider = CreateProvider(handler);
         var result = await provider.FetchAsync("x", refresh: true, CancellationToken.None);
 
-        result.DataSource.ShouldBe("demo");
+        result.DataSource.ShouldBe("live");
         result.Comments.Count.ShouldBe(0);
+        result.Message.ShouldNotBeNullOrWhiteSpace();
     }
 
     [Test]
@@ -231,7 +232,8 @@ public class ApifySocialCommentProviderTests
                 "profileName": "Carlos Pérez",
                 "profileUrl": "https://www.facebook.com/carlos",
                 "date": "2026-02-16T09:00:00Z",
-                "postUrl": "https://www.facebook.com/UleamEc/posts/123"
+                "postUrl": "https://www.facebook.com/UleamEc/posts/123",
+                "locationName": "Manta, Manabí"
               }
             ]
             """
@@ -250,6 +252,49 @@ public class ApifySocialCommentProviderTests
         result.Comments.Count.ShouldBe(1);
         result.Comments.First().Text.ShouldBe("Gracias por la información");
         result.Comments.First().AuthorName.ShouldBe("Carlos Pérez");
+        result.Comments.First().Platform.ShouldBe("facebook");
+        result.Comments.First().RawLocation.ShouldBe("Manta, Manabí");
+    }
+
+    [Test]
+    public async Task ShouldFetchFacebookCommentsFromSharePostUrl()
+    {
+        var shareUrl = "https://www.facebook.com/share/p/19yhtE85L6/";
+        var handler = new QueueHttpMessageHandler().AddActor(
+            "apify~facebook-comments-scraper",
+            """
+            [
+              {
+                "id": "fb-comment-share",
+                "text": "Apoyo esta iniciativa",
+                "profileName": "Ana",
+                "date": "2026-02-16T09:00:00Z",
+                "postUrl": "https://www.facebook.com/share/p/19yhtE85L6/"
+              }
+            ]
+            """
+        );
+
+        var provider = CreateProvider(
+            handler,
+            profiles: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["facebook"] = shareUrl,
+            }
+        );
+        var result = await provider.FetchAsync(
+            "facebook",
+            refresh: true,
+            CancellationToken.None,
+            sourceUrls: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["facebook"] = shareUrl,
+            }
+        );
+
+        result.DataSource.ShouldBe("live");
+        result.Comments.Count.ShouldBe(1);
+        result.Comments.First().Text.ShouldBe("Apoyo esta iniciativa");
         result.Comments.First().Platform.ShouldBe("facebook");
     }
 

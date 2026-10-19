@@ -134,7 +134,7 @@ public sealed class ApifySocialCommentProvider(
                 if (kept.Length == 0)
                 {
                     errors.Add(
-                        $"Apify no devolvió comentarios de {targetPlatform}. Revisa créditos, token y que el perfil sea público."
+                        $"Apify no devolvió comentarios de {targetPlatform}. Revisa créditos, token y que el perfil o la publicación sean públicos."
                     );
                 }
             }
@@ -197,12 +197,14 @@ public sealed class ApifySocialCommentProvider(
 
         if (comments.Count == 0)
         {
-            return new SocialCommentFetchResult(
+            var emptyResult = new SocialCommentFetchResult(
                 "live",
                 [],
                 lastError
-                    ?? "Apify no devolvió comentarios. Verifica tu token, créditos y que los perfiles sean públicos."
+                    ?? "Apify no devolvió comentarios. Verifica el token, los créditos y que el perfil o la publicación sean públicos."
             );
+            cache.Set(cacheKey, emptyResult, TimeSpan.FromMinutes(settings.CacheMinutes));
+            return emptyResult;
         }
 
         var result =
@@ -326,6 +328,25 @@ public sealed class ApifySocialCommentProvider(
         }
 
         return path.Length > 0 || uri.Query.Length > 1;
+    }
+
+    private static bool IsFacebookDirectPostUrl(string profileUrl)
+    {
+        if (!Uri.TryCreate(profileUrl.Trim(), UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        var path = uri.AbsolutePath.ToLowerInvariant();
+        return path.Contains("/posts/", StringComparison.Ordinal)
+            || path.Contains("/videos/", StringComparison.Ordinal)
+            || path.Contains("/watch", StringComparison.Ordinal)
+            || path.Contains("/permalink", StringComparison.Ordinal)
+            || path.Contains("/share/", StringComparison.Ordinal)
+            || path.Contains("/reel/", StringComparison.Ordinal)
+            || path.Contains("/story.php", StringComparison.Ordinal)
+            || uri.Host.Contains("fb.watch", StringComparison.OrdinalIgnoreCase)
+            || uri.Query.Contains("story_fbid", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string BuildSourceFingerprint(IReadOnlyDictionary<string, string>? sourceUrls)
@@ -547,7 +568,8 @@ public sealed class ApifySocialCommentProvider(
                 values("createTime"),
                 values("timestamp"),
                 values("createdAt")
-            )
+            ),
+            ExtractLocationHint(item)
         );
     }
 
@@ -641,6 +663,31 @@ public sealed class ApifySocialCommentProvider(
         CancellationToken cancellationToken
     )
     {
+        if (IsFacebookDirectPostUrl(profileUrl))
+        {
+            var directPost = new SocialPost(
+                profileUrl,
+                "facebook",
+                "Publicación de Facebook",
+                profileUrl,
+                DateTimeOffset.UtcNow
+            );
+            var facebookCommentsPerDirectPost = Math.Max(
+                settings.MaxCommentsPerPost,
+                settings.FacebookMaxCommentsPerPost
+            );
+            return await FetchCommentsForPostsAsync(
+                settings.Actors.FacebookComments,
+                [directPost],
+                apifyToken,
+                settings,
+                cancellationToken,
+                MapFacebookComment,
+                facebookCommentsPerDirectPost,
+                batchSizeOverride: 1
+            );
+        }
+
         if (string.IsNullOrWhiteSpace(settings.Actors.FacebookPosts))
         {
             return await FetchProfileCommentsAsync(
@@ -871,7 +918,8 @@ public sealed class ApifySocialCommentProvider(
                         values("createdAt"),
                         values("takenAt"),
                         values("postedAt")
-                    )
+                    ),
+                    ExtractLocationHint(item)
                 );
             })
             .Where(post => post is not null)
@@ -922,7 +970,8 @@ public sealed class ApifySocialCommentProvider(
                 values("commentTimestamp"),
                 values("createdAt"),
                 values("createTimeISO")
-            )
+            ),
+            ExtractLocationHint(item, post.LocationHint)
         );
     }
 
@@ -960,7 +1009,8 @@ public sealed class ApifySocialCommentProvider(
                 values("commentTimestamp"),
                 values("createdAt"),
                 values("time")
-            )
+            ),
+            ExtractLocationHint(item, post.LocationHint)
         );
     }
 
@@ -969,7 +1019,8 @@ public sealed class ApifySocialCommentProvider(
         string Platform,
         string Title,
         string Url,
-        DateTimeOffset PublishedAt
+        DateTimeOffset PublishedAt,
+        string? LocationHint = null
     );
 
     private async Task<IReadOnlyList<SocialCommentDraft>> FetchProfileCommentsAsync(
@@ -1325,7 +1376,8 @@ public sealed class ApifySocialCommentProvider(
             FirstNonEmpty(values("commentUrl"), postUrl),
             postTitle,
             postUrl,
-            ParseTimestamp(values("commentTimestamp"), values("timestamp"))
+            ParseTimestamp(values("commentTimestamp"), values("timestamp")),
+            ExtractLocationHint(item)
         );
     }
 
@@ -1406,7 +1458,8 @@ public sealed class ApifySocialCommentProvider(
                 values("timestamp"),
                 values("createTimeISO"),
                 values("date")
-            )
+            ),
+            ExtractLocationHint(item)
         );
     }
 
@@ -1527,7 +1580,8 @@ public sealed class ApifySocialCommentProvider(
                 values("createTimeISO"),
                 values("createTime"),
                 values("date")
-            )
+            ),
+            ExtractLocationHint(item, post.Text)
         );
     }
 
@@ -1668,6 +1722,59 @@ public sealed class ApifySocialCommentProvider(
                 _ => string.Empty,
             };
         };
+    }
+
+    private static string ExtractLocationHint(JsonElement item, params string?[] extra)
+    {
+        var values = ExtractString(item);
+        return FirstNonEmpty(
+            values("locationName"),
+            values("location"),
+            values("place"),
+            values("city"),
+            values("cityName"),
+            values("region"),
+            values("locationCreated"),
+            values("authorLocation"),
+            values("profileLocation"),
+            ExtractNestedText(item, "location", "name", "full_name", "city", "title", "locationName"),
+            ExtractNestedText(item, "place", "name", "full_name", "city", "title"),
+            ExtractNestedText(item, "author", "location", "place", "name"),
+            ExtractNestedText(item, "user", "location", "place", "name"),
+            FirstNonEmpty(extra)
+        );
+    }
+
+    private static string ExtractNestedText(JsonElement item, string objectName, params string[] keys)
+    {
+        if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty(objectName, out var nested))
+        {
+            return string.Empty;
+        }
+
+        if (nested.ValueKind == JsonValueKind.String)
+        {
+            return nested.GetString() ?? string.Empty;
+        }
+
+        if (nested.ValueKind != JsonValueKind.Object)
+        {
+            return string.Empty;
+        }
+
+        foreach (var key in keys)
+        {
+            if (
+                nested.TryGetProperty(key, out var property)
+                && property.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(property.GetString())
+            )
+            {
+                return property.GetString()!;
+            }
+        }
+
+        return string.Empty;
     }
 
     private static string FirstNonEmpty(params string?[] values) =>

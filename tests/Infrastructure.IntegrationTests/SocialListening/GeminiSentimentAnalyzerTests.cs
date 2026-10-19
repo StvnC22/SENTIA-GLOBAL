@@ -43,6 +43,7 @@ public class GeminiSentimentAnalyzerTests
         results["c1"].Label.ShouldBe("positive");
         results["c1"].DisplayName.ShouldBe("Positivo");
         results["c1"].Confidence.ShouldBe(92);
+        handler.RequestBody.ShouldNotContain("additionalProperties");
     }
 
     [Test]
@@ -59,9 +60,24 @@ public class GeminiSentimentAnalyzerTests
         results["c1"].Label.ShouldBe("positive");
     }
 
+    [Test]
+    public async Task ShouldFallbackToLocalAnalyzerWhenAiKeyIsAnApifyToken()
+    {
+        var handler = new StubHttpMessageHandler("{}");
+        var analyzer = CreateAnalyzer(handler, geminiKey: "apify_api_not_a_gemini_key");
+
+        var results = await analyzer.AnalyzeBatchAsync(
+            [new SentimentAnalysisRequest("c1", "Excelente universidad")],
+            CancellationToken.None
+        );
+
+        results["c1"].Label.ShouldBe("positive");
+    }
+
     private static GeminiSentimentAnalyzer CreateAnalyzer(
         HttpMessageHandler handler,
-        bool includeGeminiKey = true
+        bool includeGeminiKey = true,
+        string? geminiKey = null
     )
     {
         var httpClient = new HttpClient(handler)
@@ -69,7 +85,9 @@ public class GeminiSentimentAnalyzerTests
             BaseAddress = new Uri("https://generativelanguage.googleapis.com/"),
         };
 
-        var credentialStore = new StubCredentialStore(includeGeminiKey ? "test-gemini-key" : null);
+        var credentialStore = new StubCredentialStore(
+            geminiKey ?? (includeGeminiKey ? "test-gemini-key" : null)
+        );
 
         return new GeminiSentimentAnalyzer(
             httpClient,
@@ -93,17 +111,20 @@ public class GeminiSentimentAnalyzerTests
 
     private sealed class StubHttpMessageHandler(string responseBody) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(
+        public string RequestBody { get; private set; } = string.Empty;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken
         )
         {
+            RequestBody = await request.Content!.ReadAsStringAsync(cancellationToken);
             var response = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),
             };
 
-            return Task.FromResult(response);
+            return response;
         }
     }
 }

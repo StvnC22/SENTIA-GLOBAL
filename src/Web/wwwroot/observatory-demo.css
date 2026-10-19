@@ -1,0 +1,138 @@
+.obs-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.obs-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.obs-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.obs-kpi {
+  padding: 1rem 1.1rem;
+}
+
+.obs-kpi span {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+.obs-kpi strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 1.35rem;
+}
+
+.obs-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.obs-item {
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 12px;
+  padding: 0.8rem 0.95rem;
+}
+
+.obs-item small {
+  display: block;
+  opacity: 0.7;
+  margin-top: 0.25rem;
+}
+
+.obs-sev-alta { border-left: 3px solid #e85d4c; }
+.obs-sev-media { border-left: 3px solid #e2b341; }
+.obs-sev-baja { border-left: 3px solid #3dbf7a; }
+
+.obs-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.65rem;
+  min-height: 140px;
+  padding: 0.5rem 0.25rem;
+}
+
+.obs-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.obs-bar-fill {
+  width: 100%;
+  border-radius: 8px 8px 4px 4px;
+  background: linear-gradient(180deg, #5b8def, #3dbf7a);
+  min-height: 8px;
+}
+
+.obs-bar span {
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+
+.obs-table-wrap {
+  overflow-x: auto;
+}
+
+.obs-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.obs-topics em {
+  font-style: normal;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 960px) {
+  .obs-filters,
+  .obs-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .obs-filters,
+  .obs-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  .app-sidebar,
+  .app-top-header,
+  .obs-filters,
+  .history-global-actions {
+    display: none !important;
+  }
+
+  .view-panel {
+    display: none !important;
+  }
+
+  #view-observatory.view-panel.active,
+  #view-observatory {
+    display: block !important;
+  }
+}

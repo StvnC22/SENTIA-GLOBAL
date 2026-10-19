@@ -15,4 +15,16 @@ public class GetSocialCommentsTests : TestBase
         result.Summary.Positive.ShouldBeGreaterThan(0);
         result.Summary.Negative.ShouldBeGreaterThan(0);
     }
+
+    [Test]
+    public async Task ShouldLocateFacebookCommentsMentioningManabi()
+    {
+        var result = await TestApp.SendAsync(new GetSocialCommentsQuery("facebook"));
+
+        result.Comments.ShouldNotBeEmpty();
+        result.Comments.ShouldContain(comment =>
+            comment.Location?.Province == "Manabí"
+            && comment.Text.Contains("Manabí", StringComparison.OrdinalIgnoreCase)
+        );
+    }
 }

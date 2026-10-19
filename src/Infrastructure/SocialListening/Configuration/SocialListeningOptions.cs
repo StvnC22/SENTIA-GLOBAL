@@ -84,5 +84,5 @@ public sealed class ApifyActorOptions
 
 public sealed class GeminiOptions
 {
-    public string Model { get; init; } = "gemini-2.5-flash";
+    public string Model { get; init; } = "gemini-3.5-flash-lite";
 }

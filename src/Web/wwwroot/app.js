@@ -249,7 +249,7 @@ function filterComments(platformFilter = "global", sentimentFilter = "all", sear
   return commentsInPeriod()
     .filter(item => normalizedFilter === "global" || normalizePlatform(item.platform) === normalizedFilter)
     .filter(item => sentimentFilter === "all" || item.sentiment.label === sentimentFilter)
-    .filter(item => !searchTerm || `${item.authorName} ${item.authorHandle} ${item.text} ${item.postTitle}`.toLocaleLowerCase("es").includes(searchTerm))
+    .filter(item => !searchTerm || `${item.authorName} ${item.authorHandle} ${item.text} ${item.postTitle} ${locationLabel(item)}`.toLocaleLowerCase("es").includes(searchTerm))
     .sort((left, right) => {
       if (sortFilter === "oldest") return new Date(left.publishedAt) - new Date(right.publishedAt);
       if (sortFilter === "post") return left.postTitle.localeCompare(right.postTitle, "es");
@@ -365,11 +365,78 @@ function renderDashboard() {
 
   // Render Clouds & Calendars
   renderSemanticCloud("dashSemanticCloud", "dashCloudMeta");
+  renderTerritoryBars(periodComments);
+}
+
+function locationLabel(comment) {
+  return comment?.location?.displayName || comment?.location?.province || "Sin ubicar";
+}
+
+function matchesLocationFilter(comment, locationFilter) {
+  if (!locationFilter || locationFilter === "all") return true;
+  const province = comment?.location?.province;
+  if (locationFilter === "none") return !province;
+  return province === locationFilter;
+}
+
+function fillLocationFilter(select, comments) {
+  if (!select) return;
+  const current = select.value || "all";
+  const provinces = [...new Set(comments.map(comment => comment.location?.province).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, "es"));
+  select.innerHTML = [
+    `<option value="all">Todas las ubicaciones</option>`,
+    ...provinces.map(province => `<option value="${escapeHtml(province)}">${escapeHtml(province)}</option>`),
+    `<option value="none">Sin ubicar</option>`
+  ].join("");
+  if ([...select.options].some(option => option.value === current)) {
+    select.value = current;
+  }
+}
+
+function renderTerritoryBars(comments) {
+  const container = document.getElementById("dashTerritoryBars");
+  const empty = document.getElementById("dashTerritoryEmpty");
+  if (!container) return;
+
+  const counts = new Map();
+  comments.forEach(comment => {
+    const province = comment.location?.province;
+    if (!province) return;
+    counts.set(province, (counts.get(province) || 0) + 1);
+  });
+
+  const ranked = [...counts.entries()].sort((left, right) => right[1] - left[1]).slice(0, 8);
+  if (!ranked.length) {
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = "Sin ubicaciones detectadas todavía.";
+    }
+    container.querySelectorAll(".net-bar-item").forEach(item => item.remove());
+    return;
+  }
+
+  if (empty) empty.hidden = true;
+  const maxCount = Math.max(...ranked.map(item => item[1]), 1);
+  container.querySelectorAll(".net-bar-item").forEach(item => item.remove());
+  ranked.forEach(([province, count]) => {
+    const item = document.createElement("div");
+    item.className = "net-bar-item";
+    item.innerHTML = `
+      <div class="net-bar-info">
+        <span class="net-bar-label">${escapeHtml(province)}</span>
+        <strong class="net-bar-val">${count}</strong>
+      </div>
+      <div class="net-bar-track"><div class="net-bar-fill instagram" style="width:${Math.round((count / maxCount) * 100)}%"></div></div>
+    `;
+    container.appendChild(item);
+  });
 }
 
 function renderNetworkModule(platform) {
   const searchInput = document.querySelector(`.table-search-input[data-platform="${platform}"]`);
   const sentimentSelect = document.querySelector(`.sentiment-filter-select[data-platform="${platform}"]`);
+  const locationSelect = document.querySelector(`.location-filter-select[data-platform="${platform}"]`);
   const sortSelect = document.querySelector(`.sort-filter-select[data-platform="${platform}"]`);
 
   const searchQuery = searchInput ? searchInput.value : "";
@@ -377,11 +444,14 @@ function renderNetworkModule(platform) {
   const sortFilter = sortSelect ? sortSelect.value : "newest";
 
   const allPlatformComments = state.comments.filter(c => normalizePlatform(c.platform) === platform);
+  fillLocationFilter(locationSelect, allPlatformComments);
+  const locationFilter = locationSelect ? locationSelect.value : "all";
   // El módulo de cada red muestra la misma consulta completa que el historial
   // y el Dashboard; el período temporal solo afecta los gráficos globales.
   const comments = allPlatformComments
     .filter(item => sentimentFilter === "all" || item.sentiment.label === sentimentFilter)
-    .filter(item => !searchQuery.trim() || `${item.authorName} ${item.authorHandle} ${item.text} ${item.postTitle}`.toLocaleLowerCase("es").includes(searchQuery.trim().toLocaleLowerCase("es")))
+    .filter(item => matchesLocationFilter(item, locationFilter))
+    .filter(item => !searchQuery.trim() || `${item.authorName} ${item.authorHandle} ${item.text} ${item.postTitle} ${locationLabel(item)}`.toLocaleLowerCase("es").includes(searchQuery.trim().toLocaleLowerCase("es")))
     .sort((left, right) => {
       if (sortFilter === "oldest") return new Date(left.publishedAt) - new Date(right.publishedAt);
       if (sortFilter === "post") return left.postTitle.localeCompare(right.postTitle, "es");
@@ -454,6 +524,7 @@ function renderCommentRow(comment, showNetworkBadge = true) {
     <td data-label="Usuario"><a class="user-link" href="${escapeHtml(comment.authorUrl)}" target="_blank" rel="noopener noreferrer"><span class="user-avatar">${escapeHtml(initials(comment.authorName))}</span><span class="user-info"><strong>${escapeHtml(comment.authorName)}</strong><span>${escapeHtml(comment.authorHandle)}</span></span></a></td>
     <td data-label="Comentario"><a class="comment-link" href="${escapeHtml(comment.commentUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(comment.text)}</a></td>
     <td data-label="Publicación"><a class="post-link" href="${escapeHtml(comment.postUrl)}" target="_blank" rel="noopener noreferrer"><span>${escapeHtml(comment.postTitle)}</span></a></td>
+    <td data-label="Ubicación">${escapeHtml(locationLabel(comment))}</td>
     <td data-label="Sentimiento"><span class="sentiment ${escapeHtml(comment.sentiment.label)}"><i></i>${escapeHtml(comment.sentiment.displayName)}</span><span class="confidence">${comment.sentiment.confidence}% confianza</span></td>
     <td class="date" data-label="Fecha"><strong>${escapeHtml(formatDay(date))}</strong><span>${escapeHtml(formatTime(date))}</span></td>
   </tr>`;
@@ -800,7 +871,7 @@ window.exportHistoryRecord = function(id) {
   const record = state.history.find(r => r.id === id);
   if (!record) return;
 
-  const rows = [["Registro", "Tiempo de análisis", "Red social", "Usuario", "Comentario", "Publicación", "URL comentario", "URL publicación", "Sentimiento", "Confianza", "Fecha"]];
+  const rows = [["Registro", "Tiempo de análisis", "Red social", "Usuario", "Comentario", "Publicación", "Ubicación", "URL comentario", "URL publicación", "Sentimiento", "Confianza", "Fecha"]];
   const comments = record.comments || [];
   if (comments.length) {
     comments.forEach(comment => rows.push([
@@ -810,6 +881,7 @@ window.exportHistoryRecord = function(id) {
       comment.authorName || comment.authorHandle || "",
       comment.text || "",
       comment.postTitle || "",
+      locationLabel(comment),
       comment.commentUrl || "",
       comment.postUrl || "",
       comment.sentiment?.displayName || comment.sentiment?.label || "",
@@ -851,7 +923,7 @@ function exportFullHistoryLog() {
     return;
   }
 
-  const rows = [["Fecha", "Tiempo de análisis", "Red social", "Usuario", "Comentario", "Publicación", "URL comentario", "URL publicación", "Sentimiento", "Confianza", "Estado"]];
+  const rows = [["Fecha", "Tiempo de análisis", "Red social", "Usuario", "Comentario", "Publicación", "Ubicación", "URL comentario", "URL publicación", "Sentimiento", "Confianza", "Estado"]];
   state.history.forEach(item => {
     const comments = item.comments || [];
     comments.forEach(comment => rows.push([
@@ -861,6 +933,7 @@ function exportFullHistoryLog() {
       comment.authorName || comment.authorHandle || "",
       comment.text || "",
       comment.postTitle || "",
+      locationLabel(comment),
       comment.commentUrl || "",
       comment.postUrl || "",
       comment.sentiment?.displayName || comment.sentiment?.label || "",
@@ -1228,7 +1301,7 @@ async function executeJobAsync(job) {
 
         state.comments = deduplicateComments(mergedComments);
         state.summary = null;
-        state.dataSource = anyLive ? "live" : (dashboard.dataSource || "demo");
+        state.dataSource = anyLive ? "live" : (dashboard.dataSource || "live");
 
         renderActiveView();
 
@@ -1263,7 +1336,7 @@ async function executeJobAsync(job) {
     job.results = {
       comments: jobComments,
       summary: null,
-      dataSource: anyLive ? "live" : "demo",
+      dataSource: "live",
       message: messages.join(" · ")
     };
 
@@ -1274,7 +1347,11 @@ async function executeJobAsync(job) {
     if (!isCurrentModuleView) {
       showToast(`✦ Análisis de ${platformLabel(job.platform)} finalizado (${jobComments.length} comentarios)`);
     } else {
-      showToast(anyLive ? `Actualizado (${jobComments.length} comentarios)` : "Datos demostrativos cargados");
+      showToast(
+        anyLive
+          ? `Actualizado (${jobComments.length} comentarios)`
+          : (jobComments.length ? "Consulta terminada" : "Sin comentarios")
+      );
     }
 
     renderActiveView();
@@ -1421,6 +1498,10 @@ function initEventHandlers() {
     select.addEventListener("change", () => renderActiveView());
   });
 
+  document.querySelectorAll(".location-filter-select").forEach(select => {
+    select.addEventListener("change", () => renderActiveView());
+  });
+
   document.querySelectorAll(".sort-filter-select").forEach(select => {
     select.addEventListener("change", () => renderActiveView());
   });
@@ -1437,8 +1518,8 @@ function initEventHandlers() {
       const comments = filterComments(platform, state.sentiment, state.query, state.sort);
       
       const rows = [
-        ["Red", "Usuario", "Comentario", "Publicación", "Emoción", "Confianza", "Fecha"],
-        ...comments.map(item => [item.platform, item.authorName, item.text, item.postTitle, item.sentiment.displayName, `${item.sentiment.confidence}%`, item.publishedAt])
+        ["Red", "Usuario", "Comentario", "Publicación", "Ubicación", "Emoción", "Confianza", "Fecha"],
+        ...comments.map(item => [item.platform, item.authorName, item.text, item.postTitle, locationLabel(item), item.sentiment.displayName, `${item.sentiment.confidence}%`, item.publishedAt])
       ];
 
       const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");

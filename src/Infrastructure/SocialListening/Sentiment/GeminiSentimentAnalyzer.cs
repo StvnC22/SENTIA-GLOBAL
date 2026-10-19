@@ -37,9 +37,20 @@ public sealed class GeminiSentimentAnalyzer(
         var credentials = await credentialStore.GetAsync(cancellationToken);
         var apiKey = credentials.ArtificialIntelligence?.Trim();
 
-        if (string.IsNullOrWhiteSpace(apiKey))
+        if (string.IsNullOrWhiteSpace(apiKey) || LooksLikeApifyToken(apiKey))
         {
-            return await localSentimentAnalyzer.AnalyzeBatchAsync(comments, cancellationToken, prompt);
+            if (LooksLikeApifyToken(apiKey))
+            {
+                logger.LogWarning(
+                    "La clave de IA parece un token de Apify; se usa el analizador local."
+                );
+            }
+
+            return await localSentimentAnalyzer.AnalyzeBatchAsync(
+                comments,
+                cancellationToken,
+                prompt
+            );
         }
 
         var results = new Dictionary<string, SentimentResult>(StringComparer.OrdinalIgnoreCase);
@@ -89,8 +100,8 @@ public sealed class GeminiSentimentAnalyzer(
         var models = new[]
         {
             options.Value.Gemini.Model,
-            "gemini-2.5-flash-lite",
-            "gemini-2.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.8-flash",
         }
             .Where(model => !string.IsNullOrWhiteSpace(model))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -143,7 +154,10 @@ public sealed class GeminiSentimentAnalyzer(
         request.Content = JsonContent.Create(
             new
             {
-                contents = new[] { new { parts = new[] { new { text = BuildPrompt(comments, prompt) } } } },
+                contents = new[]
+                {
+                    new { parts = new[] { new { text = BuildPrompt(comments, prompt) } } },
+                },
                 generationConfig = new
                 {
                     temperature = 0.1,
@@ -157,12 +171,20 @@ public sealed class GeminiSentimentAnalyzer(
                             properties = new
                             {
                                 id = new { type = "STRING" },
-                                label = new { type = "STRING", @enum = new[] { "positive", "neutral", "negative" } },
+                                label = new
+                                {
+                                    type = "STRING",
+                                    @enum = new[] { "positive", "neutral", "negative" },
+                                },
                                 displayName = new { type = "STRING" },
-                                confidence = new { type = "INTEGER", minimum = 1, maximum = 100 },
+                                confidence = new
+                                {
+                                    type = "INTEGER",
+                                    minimum = 1,
+                                    maximum = 100,
+                                },
                             },
                             required = new[] { "id", "label", "displayName", "confidence" },
-                            additionalProperties = false,
                         },
                     },
                 },
@@ -190,8 +212,7 @@ public sealed class GeminiSentimentAnalyzer(
         }
 
         var json = UnwrapJson(responseText);
-        var parsed =
-            JsonSerializer.Deserialize<GeminiSentimentResponse[]>(json, JsonOptions) ?? [];
+        var parsed = JsonSerializer.Deserialize<GeminiSentimentResponse[]>(json, JsonOptions) ?? [];
 
         if (parsed.Length == 0)
         {
@@ -214,7 +235,11 @@ public sealed class GeminiSentimentAnalyzer(
                     CalibrateConfidence(
                         item.Confidence,
                         NormalizeLabel(item.Label),
-                        comments.First(comment => comment.Id.Equals(item.Id, StringComparison.OrdinalIgnoreCase)).Text
+                        comments
+                            .First(comment =>
+                                comment.Id.Equals(item.Id, StringComparison.OrdinalIgnoreCase)
+                            )
+                            .Text
                     )
                 ),
                 StringComparer.OrdinalIgnoreCase
@@ -230,52 +255,52 @@ public sealed class GeminiSentimentAnalyzer(
             comments.Select(comment => new { id = comment.Id, text = comment.Text })
         );
 
-        var instructions = string.IsNullOrWhiteSpace(customPrompt)
-            ? """
-              PROTOCOLO EXPERTO PARA ESPAÑOL Y REDES SOCIALES
-              Clasifica cada comentario únicamente por lo que comunica el texto. No uses el nombre del autor, la cuenta, la red social, el tema de la publicación ni conocimientos externos. No inventes hechos.
+        var instructions =
+            string.IsNullOrWhiteSpace(customPrompt)
+                ? """
+                    PROTOCOLO EXPERTO PARA ESPAÑOL Y REDES SOCIALES
+                    Clasifica cada comentario únicamente por lo que comunica el texto. No uses el nombre del autor, la cuenta, la red social, el tema de la publicación ni conocimientos externos. No inventes hechos.
 
-              PASO 1 — LECTURA Y CONTEXTO:
-              - Lee el comentario completo, incluyendo menciones, hashtags, emojis, signos, abreviaturas, errores ortográficos, mayúsculas y repeticiones.
-              - Interpreta lenguaje informal de redes: "jajaja", "xd", "lol", alargamientos, emojis y expresiones regionales.
-              - Identifica el objetivo: elogiar/apoyar, reclamar/denunciar, preguntar/informar o una combinación.
-              - Distingue objetivo y sentimiento: una pregunta puede ser negativa si contiene un reclamo; una petición amable puede ser neutral.
+                    PASO 1 — LECTURA Y CONTEXTO:
+                    - Lee el comentario completo, incluyendo menciones, hashtags, emojis, signos, abreviaturas, errores ortográficos, mayúsculas y repeticiones.
+                    - Interpreta lenguaje informal de redes: "jajaja", "xd", "lol", alargamientos, emojis y expresiones regionales.
+                    - Identifica el objetivo: elogiar/apoyar, reclamar/denunciar, preguntar/informar o una combinación.
+                    - Distingue objetivo y sentimiento: una pregunta puede ser negativa si contiene un reclamo; una petición amable puede ser neutral.
 
-              PASO 2 — ETIQUETAS:
-              - positive: aprobación, satisfacción, alegría, agradecimiento, felicitación, apoyo, confianza, esperanza, recomendación o elogio sincero. Incluye emojis claramente favorables.
-              - negative: queja, incumplimiento, mala experiencia, frustración, enojo, decepción, rechazo, denuncia, acusación, insulto, amenaza, discriminación, tristeza, daño, pérdida o reclamo de atención. Incluye problemas concretos aunque se expresen con cortesía: "no me respondieron", "no entregaron el pedido", "sigo esperando", "nadie ayuda".
-              - neutral: información factual, anuncio, saludo, pregunta informativa, solicitud de precio/horario/enlace o descripción sin aprobación ni desaprobación. No uses neutral para evitar decidir cuando existe una señal emocional.
+                    PASO 2 — ETIQUETAS:
+                    - positive: aprobación, satisfacción, alegría, agradecimiento, felicitación, apoyo, confianza, esperanza, recomendación o elogio sincero. Incluye emojis claramente favorables.
+                    - negative: queja, incumplimiento, mala experiencia, frustración, enojo, decepción, rechazo, denuncia, acusación, insulto, amenaza, discriminación, tristeza, daño, pérdida o reclamo de atención. Incluye problemas concretos aunque se expresen con cortesía: "no me respondieron", "no entregaron el pedido", "sigo esperando", "nadie ayuda".
+                    - neutral: información factual, anuncio, saludo, pregunta informativa, solicitud de precio/horario/enlace o descripción sin aprobación ni desaprobación. No uses neutral para evitar decidir cuando existe una señal emocional.
 
-              PASO 3 — CASOS DIFÍCILES:
-              - Negación: interpreta "no", "nunca", "jamás" y "ni siquiera" en el contexto completo.
-              - Contraste: en "el producto es bueno, pero nunca llegó" domina negative por el incumplimiento.
-              - Pregunta con reclamo: "¿cuándo van a solucionar esto?" es negative; "¿cuál es el horario?" es neutral.
-              - Pasivo-agresividad: "gracias por nada", "como siempre", "qué sorpresa", "felicidades por no responder" y reproches indirectos son negative cuando desaprueban o denuncian.
-              - Sarcasmo/ironía: no tomes literalmente una palabra positiva si el contexto la contradice. "Qué excelente servicio 🙄, otra vez nadie responde" es negative.
-              - Emojis: 😍🎉👏❤️ suelen apoyar; 😡😤😒🙄🤦😢💔 suelen expresar molestia o tristeza. Evalúalos junto al texto, nunca aislados.
-              - Cortesía no elimina el problema: "por favor, necesito que corrijan el cobro" es negative.
-              - Sentimientos mixtos: selecciona la polaridad dominante según el problema o valoración final.
-              - Ambigüedad real, texto demasiado corto o ironía no demostrable: usa neutral y confianza baja; no inventes intención.
+                    PASO 3 — CASOS DIFÍCILES:
+                    - Negación: interpreta "no", "nunca", "jamás" y "ni siquiera" en el contexto completo.
+                    - Contraste: en "el producto es bueno, pero nunca llegó" domina negative por el incumplimiento.
+                    - Pregunta con reclamo: "¿cuándo van a solucionar esto?" es negative; "¿cuál es el horario?" es neutral.
+                    - Pasivo-agresividad: "gracias por nada", "como siempre", "qué sorpresa", "felicidades por no responder" y reproches indirectos son negative cuando desaprueban o denuncian.
+                    - Sarcasmo/ironía: no tomes literalmente una palabra positiva si el contexto la contradice. "Qué excelente servicio 🙄, otra vez nadie responde" es negative.
+                    - Emojis: 😍🎉👏❤️ suelen apoyar; 😡😤😒🙄🤦😢💔 suelen expresar molestia o tristeza. Evalúalos junto al texto, nunca aislados.
+                    - Cortesía no elimina el problema: "por favor, necesito que corrijan el cobro" es negative.
+                    - Sentimientos mixtos: selecciona la polaridad dominante según el problema o valoración final.
+                    - Ambigüedad real, texto demasiado corto o ironía no demostrable: usa neutral y confianza baja; no inventes intención.
 
-              EJEMPLOS:
-              - "Me encantó la atención, volveré" → positive.
-              - "Gracias por nada, llevo tres semanas esperando" → negative.
-              - "¿Cuál es el horario de atención?" → neutral.
-              - "El producto es bueno, pero nunca me lo entregaron" → negative.
-              - "Qué excelente servicio 🙄, otra vez nadie responde" → negative.
-              - "Necesito el enlace para registrarme" → neutral.
+                    EJEMPLOS:
+                    - "Me encantó la atención, volveré" → positive.
+                    - "Gracias por nada, llevo tres semanas esperando" → negative.
+                    - "¿Cuál es el horario de atención?" → neutral.
+                    - "El producto es bueno, pero nunca me lo entregaron" → negative.
+                    - "Qué excelente servicio 🙄, otra vez nadie responde" → negative.
+                    - "Necesito el enlace para registrarme" → neutral.
 
-              CONFIANZA CALIBRADA:
-              - 95-100: evidencia explícita, inequívoca y coherente; solo en casos muy claros.
-              - 85-94: polaridad clara con señales directas, aunque haya lenguaje informal.
-              - 70-84: interpretación bastante probable, con mezcla o contexto implícito.
-              - 50-69: ambigüedad, ironía posible, texto corto o señales contradictorias.
-              - 1-49: casi no hay evidencia de polaridad; normalmente neutral.
-              La confianza estima la evidencia del texto, no garantiza el acierto. No la subas para aparentar precisión.
-              """
-            : customPrompt.Trim().Length > 1500
-                ? customPrompt.Trim()[..1500]
-                : customPrompt.Trim();
+                    CONFIANZA CALIBRADA:
+                    - 95-100: evidencia explícita, inequívoca y coherente; solo en casos muy claros.
+                    - 85-94: polaridad clara con señales directas, aunque haya lenguaje informal.
+                    - 70-84: interpretación bastante probable, con mezcla o contexto implícito.
+                    - 50-69: ambigüedad, ironía posible, texto corto o señales contradictorias.
+                    - 1-49: casi no hay evidencia de polaridad; normalmente neutral.
+                    La confianza estima la evidencia del texto, no garantiza el acierto. No la subas para aparentar precisión.
+                    """
+            : customPrompt.Trim().Length > 1500 ? customPrompt.Trim()[..1500]
+            : customPrompt.Trim();
 
         return $"""
             Eres un sistema experto de análisis de sentimiento en español para comentarios públicos de redes sociales.
@@ -352,6 +377,10 @@ public sealed class GeminiSentimentAnalyzer(
         return string.Empty;
     }
 
+    private static bool LooksLikeApifyToken(string? apiKey) =>
+        !string.IsNullOrWhiteSpace(apiKey)
+        && apiKey.StartsWith("apify_api_", StringComparison.OrdinalIgnoreCase);
+
     private static string NormalizeLabel(string? label) =>
         label?.Trim().ToLowerInvariant() switch
         {
@@ -364,15 +393,29 @@ public sealed class GeminiSentimentAnalyzer(
     {
         var confidence = Math.Clamp(modelConfidence, 1, 100);
         var normalized = text.Trim().ToLowerInvariant();
-        var hasContrast = new[] { " pero ", " aunque ", " sin embargo ", " no obstante " }
-            .Any(normalized.Contains);
-        var hasUncertainty = new[] { "quizá", "quizas", "tal vez", "no sé", "no se", "parece" }
-            .Any(normalized.Contains);
+        var hasContrast = new[] { " pero ", " aunque ", " sin embargo ", " no obstante " }.Any(
+            normalized.Contains
+        );
+        var hasUncertainty = new[] { "quizá", "quizas", "tal vez", "no sé", "no se", "parece" }.Any(
+            normalized.Contains
+        );
         var hasDirectNegativeSignal = new[]
         {
-            "no entreg", "no respond", "no recib", "no funciona", "lamentable",
-            "gracias por nada", "como siempre", "qué sorpresa", "que sorpresa",
-            "vergüenza", "verguenza", "pésimo", "pesimo", "estafa", "denuncia"
+            "no entreg",
+            "no respond",
+            "no recib",
+            "no funciona",
+            "lamentable",
+            "gracias por nada",
+            "como siempre",
+            "qué sorpresa",
+            "que sorpresa",
+            "vergüenza",
+            "verguenza",
+            "pésimo",
+            "pesimo",
+            "estafa",
+            "denuncia",
         }.Any(normalized.Contains);
 
         // A model must not report near-certainty for a short, mixed or

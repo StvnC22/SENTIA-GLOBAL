@@ -12,6 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css?v=sentia-20261005-v1">
+  <link rel="stylesheet" href="/observatory-demo.css?v=sentia-20261017-v1">
 </head>
 <body class="app-body">
   <!-- App Shell Layout -->
@@ -50,6 +51,16 @@
             <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
           </span>
           <span class="nav-label">Dashboard Principal</span>
+        </button>
+
+        <div class="nav-section-title">OBSERVATORIO (DEMO)</div>
+
+        <button class="nav-item" data-nav="observatory" type="button" title="Observatorio Territorial">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+          </span>
+          <span class="nav-label">Territorio y alertas</span>
+          <span class="nav-count">DEMO</span>
         </button>
 
         <div class="nav-section-title">MÓDULOS DE REDES SOCIALES</div>
@@ -288,6 +299,16 @@
                 </div>
               </div>
 
+              <div class="glass-card">
+                <div class="card-header">
+                  <h3>Ubicación en resultados</h3>
+                  <span class="card-tag">Territorio real</span>
+                </div>
+                <div class="network-distribution-bars" id="dashTerritoryBars">
+                  <p class="page-description" id="dashTerritoryEmpty">Sin ubicaciones detectadas todavía.</p>
+                </div>
+              </div>
+
               <!-- Top Network & Analysis Status Summary -->
               <div class="dashboard-status-row">
                 <div class="glass-card feature-card">
@@ -479,6 +500,9 @@
               </div>
 
               <div class="toolbar-filters">
+                <select class="modern-select location-filter-select" data-platform="instagram">
+                  <option value="all">Todas las ubicaciones</option>
+                </select>
                 <select class="modern-select sentiment-filter-select" data-platform="instagram">
                   <option value="all">Todas las emociones</option>
                   <option value="positive">Positivos</option>
@@ -501,7 +525,7 @@
 
             <div class="table-responsive">
               <table class="comments-table">
-                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
+                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Ubicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
                 <tbody id="instagramCommentsBody"></tbody>
               </table>
               <div class="empty-state" id="instagramEmptyState" hidden>
@@ -586,6 +610,9 @@
               </div>
 
               <div class="toolbar-filters">
+                <select class="modern-select location-filter-select" data-platform="facebook">
+                  <option value="all">Todas las ubicaciones</option>
+                </select>
                 <select class="modern-select sentiment-filter-select" data-platform="facebook">
                   <option value="all">Todas las emociones</option>
                   <option value="positive">Positivos</option>
@@ -608,7 +635,7 @@
 
             <div class="table-responsive">
               <table class="comments-table">
-                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
+                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Ubicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
                 <tbody id="facebookCommentsBody"></tbody>
               </table>
               <div class="empty-state" id="facebookEmptyState" hidden>
@@ -693,6 +720,9 @@
               </div>
 
               <div class="toolbar-filters">
+                <select class="modern-select location-filter-select" data-platform="tiktok">
+                  <option value="all">Todas las ubicaciones</option>
+                </select>
                 <select class="modern-select sentiment-filter-select" data-platform="tiktok">
                   <option value="all">Todas las emociones</option>
                   <option value="positive">Positivos</option>
@@ -715,7 +745,7 @@
 
             <div class="table-responsive">
               <table class="comments-table">
-                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
+                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Ubicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
                 <tbody id="tiktokCommentsBody"></tbody>
               </table>
               <div class="empty-state" id="tiktokEmptyState" hidden>
@@ -800,6 +830,9 @@
               </div>
 
               <div class="toolbar-filters">
+                <select class="modern-select location-filter-select" data-platform="x">
+                  <option value="all">Todas las ubicaciones</option>
+                </select>
                 <select class="modern-select sentiment-filter-select" data-platform="x">
                   <option value="all">Todas las emociones</option>
                   <option value="positive">Positivos</option>
@@ -822,7 +855,7 @@
 
             <div class="table-responsive">
               <table class="comments-table">
-                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
+                <thead><tr><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Ubicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
                 <tbody id="xCommentsBody"></tbody>
               </table>
               <div class="empty-state" id="xEmptyState" hidden>
@@ -1000,7 +1033,7 @@
 
             <div class="table-responsive">
               <table class="comments-table">
-                <thead><tr><th>Red</th><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
+                <thead><tr><th>Red</th><th>Usuario</th><th>Comentario</th><th>Publicación</th><th>Ubicación</th><th>Sentimiento IA</th><th>Fecha</th></tr></thead>
                 <tbody id="commentsBody"></tbody>
               </table>
               <div class="empty-state" id="emptyState" hidden>
@@ -1029,6 +1062,135 @@
           </div>
         </template>
 
+
+        <!-- ========================================== -->
+        <!-- VIEW DEMO: OBSERVATORIO TERRITORIAL        -->
+        <!-- ========================================== -->
+        <section class="view-panel" id="view-observatory">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-badge">DEMO · NO ALTERA EL MONITOREO REAL</span>
+              <h1 class="page-title">Observatorio Territorial</h1>
+              <p class="page-description" id="observatoryDisclaimer">Geografía, alertas, roles, reportes y auditoría con datos de demostración.</p>
+            </div>
+            <div class="history-global-actions">
+              <button class="secondary-button" id="observatoryExportCsvBtn" type="button">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Exportar CSV</span>
+              </button>
+              <button class="primary-button" id="observatoryPrintBtn" type="button">Imprimir resumen</button>
+            </div>
+          </div>
+
+          <div class="obs-filters glass-card" aria-label="Filtros territoriales de demostración">
+            <label>
+              <span>Provincia</span>
+              <select id="obsProvinceFilter" class="modern-select"></select>
+            </label>
+            <label>
+              <span>Cantón</span>
+              <select id="obsCantonFilter" class="modern-select"></select>
+            </label>
+            <label>
+              <span>Parroquia</span>
+              <select id="obsParishFilter" class="modern-select"></select>
+            </label>
+          </div>
+
+          <div class="obs-kpi-grid" id="obsKpiGrid"></div>
+
+          <div class="dashboard-split-grid">
+            <div class="dashboard-left-col">
+              <div class="glass-card">
+                <div class="card-header">
+                  <h3>Indicadores por territorio</h3>
+                  <span class="card-tag">Manabí y comparativo</span>
+                </div>
+                <div class="obs-table-wrap">
+                  <table class="history-table" id="obsTerritoryTable">
+                    <thead>
+                      <tr>
+                        <th>Provincia</th>
+                        <th>Cantón</th>
+                        <th>Parroquia</th>
+                        <th>Menciones</th>
+                        <th>Negatividad</th>
+                        <th>Tono</th>
+                      </tr>
+                    </thead>
+                    <tbody id="obsTerritoryBody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="glass-card">
+                <div class="card-header">
+                  <h3>Volumen y negatividad (7 días)</h3>
+                </div>
+                <div class="obs-trend" id="obsTrend"></div>
+              </div>
+            </div>
+
+            <div class="dashboard-right-col">
+              <div class="glass-card">
+                <div class="card-header">
+                  <h3>Alertas activas</h3>
+                  <span class="card-tag">Panel interno</span>
+                </div>
+                <div id="obsAlerts" class="obs-stack"></div>
+              </div>
+
+              <div class="glass-card">
+                <div class="card-header">
+                  <h3>Monitoreos programados</h3>
+                </div>
+                <div id="obsSearches" class="obs-stack"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>Resumen ejecutivo</h3>
+              <span class="card-tag">PDF vía impresión · Excel vía CSV</span>
+            </div>
+            <div id="obsReport"></div>
+          </div>
+
+          <div class="dashboard-split-grid">
+            <div class="glass-card">
+              <div class="card-header"><h3>Roles de la demo</h3></div>
+              <div id="obsRoles" class="obs-stack"></div>
+            </div>
+            <div class="glass-card">
+              <div class="card-header"><h3>Calidad de recolección</h3></div>
+              <div id="obsQuality"></div>
+            </div>
+            <div class="glass-card">
+              <div class="card-header"><h3>Auditoría</h3></div>
+              <div id="obsAudit" class="obs-stack"></div>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>Herramientas propuestas por requisito</h3>
+              <span class="card-tag">Demo vs producción</span>
+            </div>
+            <div class="obs-table-wrap">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>Necesidad</th>
+                    <th>En esta demo</th>
+                    <th>Qué usar en producción</th>
+                  </tr>
+                </thead>
+                <tbody id="obsToolsBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
 
         <!-- ========================================== -->
         <!-- VIEW 7: MÓDULO HISTORIAL                   -->
@@ -1236,6 +1398,7 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=sentia-20261006-v21" defer></script>
+  <script src="/app.js?v=sentia-20261018-v23" defer></script>
+  <script src="/observatory-demo.js?v=sentia-20261017-v1" defer></script>
 </body>
 </html>

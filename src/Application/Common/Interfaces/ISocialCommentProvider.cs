@@ -36,5 +36,6 @@ public sealed record SocialCommentDraft(
     string CommentUrl,
     string PostTitle,
     string PostUrl,
-    DateTimeOffset PublishedAt
+    DateTimeOffset PublishedAt,
+    string? RawLocation = null
 );

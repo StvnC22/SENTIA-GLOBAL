@@ -1,4 +1,5 @@
 using AnalisisSentimiento.Application.Common.Interfaces;
+using AnalisisSentimiento.Application.SocialListening.Geography;
 
 namespace AnalisisSentimiento.Application.SocialListening.Queries.GetSocialComments;
 
@@ -59,7 +60,12 @@ internal class GetSocialCommentsQueryHandler(
                     draft.PostTitle,
                     draft.PostUrl,
                     draft.PublishedAt,
-                    sentiment
+                    sentiment,
+                    TerritorialLocationResolver.Resolve(
+                        draft.RawLocation,
+                        draft.Text,
+                        draft.PostTitle
+                    )
                 );
             })
             .Where(comment =>
@@ -223,7 +229,8 @@ public record SocialComment(
     string PostTitle,
     string PostUrl,
     DateTimeOffset PublishedAt,
-    SentimentResult Sentiment = null!
+    SentimentResult Sentiment = null!,
+    TerritorialLocation? Location = null
 );
 
 public record SentimentResult(string Label, string DisplayName, int Confidence);

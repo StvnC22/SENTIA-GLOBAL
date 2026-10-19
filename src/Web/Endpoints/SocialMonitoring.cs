@@ -14,7 +14,7 @@ public class SocialMonitoring : IEndpointGroup
     public static void Map(RouteGroupBuilder groupBuilder)
     {
         groupBuilder.MapGet(Get);
-        groupBuilder.MapPut(Save, string.Empty);
+        groupBuilder.MapPut(SaveSubscription, string.Empty);
         groupBuilder.MapDelete(Delete, "{id}");
     }
 
@@ -30,7 +30,9 @@ public class SocialMonitoring : IEndpointGroup
             )
         );
 
-    public static async Task<Results<Ok<SocialMonitorSubscription>, BadRequest<string>>> Save(
+    public static async Task<
+        Results<Ok<SocialMonitorSubscription>, BadRequest<string>>
+    > SaveSubscription(
         HttpContext context,
         ISender sender,
         TimeProvider timeProvider,

@@ -22,7 +22,8 @@ public sealed class OfficialMetaSocialCommentProvider(
         && (
             platform.Equals("instagram", StringComparison.OrdinalIgnoreCase)
                 ? InstagramAccountIds.Length > 0
-                : PageIds.Length > 0
+                : platform.Equals("facebook", StringComparison.OrdinalIgnoreCase)
+                    && PageIds.Length > 0
         );
 
     private string[] PageIds => ParseIds(Api.FacebookPageIds);
@@ -49,11 +50,7 @@ public sealed class OfficialMetaSocialCommentProvider(
             );
         }
 
-        var query = string.Join(
-            ' ',
-            new[] { search, topic }.Where(value => !string.IsNullOrWhiteSpace(value))
-        );
-        var cacheKey = $"official-meta:{platform}:{string.Join(',', ids)}:{query}";
+        var cacheKey = $"official-meta:{platform}:{string.Join(',', ids)}";
         if (
             !refresh
             && cache.TryGetValue(cacheKey, out SocialCommentFetchResult? cached)
@@ -67,9 +64,9 @@ public sealed class OfficialMetaSocialCommentProvider(
             foreach (var id in ids)
             {
                 if (isInstagram)
-                    await FetchInstagramCommentsAsync(id, query, comments, cancellationToken);
+                    await FetchInstagramCommentsAsync(id, comments, cancellationToken);
                 else
-                    await FetchFacebookCommentsAsync(id, query, comments, cancellationToken);
+                    await FetchFacebookCommentsAsync(id, comments, cancellationToken);
             }
 
             var maxComments = Math.Clamp(options.Value.MaxCommentsPerPlatform, 10, 1000);
@@ -101,17 +98,16 @@ public sealed class OfficialMetaSocialCommentProvider(
 
     private async Task FetchFacebookCommentsAsync(
         string pageId,
-        string query,
         List<SocialCommentDraft> comments,
         CancellationToken cancellationToken
     )
     {
         var fields =
-            "id,message,created_time,permalink_url,comments.limit(100){id,message,from,created_time,permalink_url,like_count}";
+            "id,message,created_time,permalink_url,from{name},reactions.summary(true).limit(0),place{id,name,location{city,state,country}},comments.limit(100){id,message,from,created_time,permalink_url,like_count}";
         using var document = await GetAsync(
             $"{Version}/"
                 + Uri.EscapeDataString(pageId)
-                + $"/posts?fields={Uri.EscapeDataString(fields)}&limit=30",
+                + $"/posts?fields={Uri.EscapeDataString(fields)}&limit=100",
             cancellationToken
         );
         if (
@@ -122,10 +118,11 @@ public sealed class OfficialMetaSocialCommentProvider(
 
         foreach (var post in posts.EnumerateArray())
         {
-            var postText = GetString(post, "message") ?? string.Empty;
-            if (!MatchesQuery(postText, query))
-                continue;
             var postUrl = GetString(post, "permalink_url") ?? string.Empty;
+            var placeName = ReadPlaceName(post);
+            var postDraft = MapPost(post, "facebook", postUrl, placeName);
+            if (postDraft is not null)
+                comments.Add(postDraft);
             if (
                 !post.TryGetProperty("comments", out var container)
                 || !container.TryGetProperty("data", out var values)
@@ -134,8 +131,8 @@ public sealed class OfficialMetaSocialCommentProvider(
                 continue;
             foreach (var item in values.EnumerateArray())
             {
-                var draft = MapComment(item, "facebook", postUrl);
-                if (draft is not null && MatchesQuery(draft.Text, query))
+                var draft = MapComment(item, "facebook", postUrl, placeName);
+                if (draft is not null)
                     comments.Add(draft);
             }
         }
@@ -143,7 +140,6 @@ public sealed class OfficialMetaSocialCommentProvider(
 
     private async Task FetchInstagramCommentsAsync(
         string accountId,
-        string query,
         List<SocialCommentDraft> comments,
         CancellationToken cancellationToken
     )
@@ -151,7 +147,7 @@ public sealed class OfficialMetaSocialCommentProvider(
         using var mediaDocument = await GetAsync(
             $"{Version}/"
                 + Uri.EscapeDataString(accountId)
-                + "/media?fields=id,caption,permalink,timestamp,comments_count,like_count&limit=30",
+                + "/media?fields=id,caption,permalink,timestamp,comments_count,like_count,username&limit=100",
             cancellationToken
         );
         if (
@@ -162,12 +158,13 @@ public sealed class OfficialMetaSocialCommentProvider(
 
         foreach (var post in media.EnumerateArray())
         {
-            var postText = GetString(post, "caption") ?? string.Empty;
-            if (!MatchesQuery(postText, query))
-                continue;
             var mediaId = GetString(post, "id");
             if (string.IsNullOrWhiteSpace(mediaId))
                 continue;
+            var postUrl = GetString(post, "permalink") ?? string.Empty;
+            var postDraft = MapPost(post, "instagram", postUrl);
+            if (postDraft is not null)
+                comments.Add(postDraft);
             using var commentsDocument = await GetAsync(
                 $"{Version}/"
                     + Uri.EscapeDataString(mediaId)
@@ -179,11 +176,10 @@ public sealed class OfficialMetaSocialCommentProvider(
                 || values.ValueKind != JsonValueKind.Array
             )
                 continue;
-            var postUrl = GetString(post, "permalink") ?? string.Empty;
             foreach (var item in values.EnumerateArray())
             {
                 var draft = MapComment(item, "instagram", postUrl);
-                if (draft is not null && MatchesQuery(draft.Text, query))
+                if (draft is not null)
                     comments.Add(draft);
             }
         }
@@ -208,7 +204,12 @@ public sealed class OfficialMetaSocialCommentProvider(
 
     private string Version => Api.MetaGraphApiVersion.Trim().TrimEnd('/') + "/";
 
-    private static SocialCommentDraft? MapComment(JsonElement item, string platform, string postUrl)
+    private static SocialCommentDraft? MapComment(
+        JsonElement item,
+        string platform,
+        string postUrl,
+        string? placeName = null
+    )
     {
         var id = GetString(item, "id");
         var text = GetString(item, "message") ?? GetString(item, "text");
@@ -240,7 +241,65 @@ public sealed class OfficialMetaSocialCommentProvider(
             text.Length > 180 ? $"{text[..177]}..." : text,
             url,
             publishedAt,
-            Reactions: reactions
+            Reactions: reactions,
+            PlaceName: placeName
+        );
+    }
+
+    private static SocialCommentDraft? MapPost(
+        JsonElement item,
+        string platform,
+        string postUrl,
+        string? placeName = null
+    )
+    {
+        var id = GetString(item, "id");
+        var text = GetString(item, "message") ?? GetString(item, "caption");
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(text))
+            return null;
+        var author = item.TryGetProperty("from", out var from) ? GetString(from, "name") : null;
+        var username = GetString(item, "username");
+        var publishedAt = DateTimeOffset.TryParse(
+            GetString(item, "created_time") ?? GetString(item, "timestamp"),
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal,
+            out var timestamp
+        )
+            ? timestamp
+            : DateTimeOffset.UtcNow;
+        var reactions = GetInteger(item, "like_count") ?? GetSummaryCount(item, "reactions");
+        return new SocialCommentDraft(
+            $"meta-post:{id}",
+            platform,
+            author ?? username ?? "Cuenta autorizada",
+            username is null ? author ?? "Cuenta autorizada" : $"@{username}",
+            postUrl,
+            text,
+            postUrl,
+            text.Length > 180 ? $"{text[..177]}..." : text,
+            postUrl,
+            publishedAt,
+            Reactions: reactions,
+            PlaceName: placeName,
+            ContentType: "post"
+        );
+    }
+
+    private static string? ReadPlaceName(JsonElement post)
+    {
+        if (!post.TryGetProperty("place", out var place))
+            return null;
+        if (!place.TryGetProperty("location", out var location))
+            return GetString(place, "name");
+        return string.Join(
+            ", ",
+            new[]
+            {
+                GetString(place, "name"),
+                GetString(location, "city"),
+                GetString(location, "state"),
+                GetString(location, "country"),
+            }.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase)
         );
     }
 
@@ -253,42 +312,21 @@ public sealed class OfficialMetaSocialCommentProvider(
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
-    private static bool MatchesQuery(string text, string query)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return true;
-        var clauses = query.Split(
-            " OR ",
-            StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries
-        );
-        return clauses.Any(clause =>
-        {
-            var tokens = clause.Split(
-                ' ',
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
-            );
-            var excluded = false;
-            foreach (var token in tokens)
-            {
-                if (token.Equals("AND", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                if (token.Equals("NOT", StringComparison.OrdinalIgnoreCase))
-                {
-                    excluded = true;
-                    continue;
-                }
-                var term = token.Trim('"', '(', ')', '#');
-                var contains = text.Contains(term, StringComparison.OrdinalIgnoreCase);
-                if (excluded == contains)
-                    return false;
-                excluded = false;
-            }
-            return true;
-        });
-    }
-
     private static string? GetString(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
+            : null;
+
+    private static int? GetInteger(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.TryGetInt32(out var count)
+            ? count
+            : null;
+
+    private static int? GetSummaryCount(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var connection)
+        && connection.TryGetProperty("summary", out var summary)
+        && summary.TryGetProperty("total_count", out var count)
+        && count.TryGetInt32(out var total)
+            ? total
             : null;
 }

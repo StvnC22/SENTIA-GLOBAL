@@ -158,7 +158,9 @@ public sealed class DemoSocialCommentProvider : ISocialCommentProvider
         CancellationToken cancellationToken,
         string? topic = null,
         IReadOnlyDictionary<string, string>? sourceUrls = null,
-        string? search = null
+        string? search = null,
+        DateTimeOffset? from = null,
+        DateTimeOffset? to = null
     )
     {
         var selected = Comments

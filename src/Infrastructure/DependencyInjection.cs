@@ -97,6 +97,11 @@ public static class DependencyInjection
             client.BaseAddress = new Uri("https://graph.facebook.com/");
             client.Timeout = TimeSpan.FromSeconds(45);
         });
+        builder.Services.AddHttpClient<OfficialTikTokSocialCommentProvider>(client =>
+        {
+            client.BaseAddress = new Uri("https://open.tiktokapis.com/v2/");
+            client.Timeout = TimeSpan.FromSeconds(45);
+        });
         builder.Services.AddSingleton<DemoSocialCommentProvider>();
         builder.Services.AddSingleton<ApifySocialCommentProvider>();
         builder.Services.AddSingleton<ISocialCommentProvider, CompositeSocialCommentProvider>();

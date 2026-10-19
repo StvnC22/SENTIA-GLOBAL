@@ -48,4 +48,25 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["Parameters:meta-instagram-
     );
 }
 
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Parameters:tiktok-research-client-key"]))
+{
+    var tiktokResearchClientKey = builder.AddParameter("tiktok-research-client-key", secret: true);
+    web.WithEnvironment(
+        "SocialListening__OfficialApis__TikTokResearchClientKey",
+        tiktokResearchClientKey
+    );
+}
+
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Parameters:tiktok-research-client-secret"]))
+{
+    var tiktokResearchClientSecret = builder.AddParameter(
+        "tiktok-research-client-secret",
+        secret: true
+    );
+    web.WithEnvironment(
+        "SocialListening__OfficialApis__TikTokResearchClientSecret",
+        tiktokResearchClientSecret
+    );
+}
+
 builder.Build().Run();

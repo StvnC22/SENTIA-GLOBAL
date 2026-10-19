@@ -7,6 +7,7 @@ public sealed class CompositeSocialCommentProvider(
     ApifySocialCommentProvider apifyProvider,
     OfficialXSocialCommentProvider officialXProvider,
     OfficialMetaSocialCommentProvider officialMetaProvider,
+    OfficialTikTokSocialCommentProvider officialTikTokProvider,
     DemoSocialCommentProvider demoProvider
 ) : ISocialCommentProvider
 {
@@ -16,7 +17,9 @@ public sealed class CompositeSocialCommentProvider(
         CancellationToken cancellationToken,
         string? topic = null,
         IReadOnlyDictionary<string, string>? sourceUrls = null,
-        string? search = null
+        string? search = null,
+        DateTimeOffset? from = null,
+        DateTimeOffset? to = null
     )
     {
         if (
@@ -53,8 +56,28 @@ public sealed class CompositeSocialCommentProvider(
         }
 
         if (
+            string.Equals(platform, "tiktok", StringComparison.OrdinalIgnoreCase)
+            && officialTikTokProvider.IsConfigured
+        )
+        {
+            return await officialTikTokProvider.FetchAsync(
+                refresh,
+                topic,
+                search,
+                sourceUrls?.GetValueOrDefault("tiktok"),
+                from,
+                to,
+                cancellationToken
+            );
+        }
+
+        if (
             string.IsNullOrWhiteSpace(platform)
-            && (officialXProvider.IsConfigured || officialMetaProvider.IsConfigured)
+            && (
+                officialXProvider.IsConfigured
+                || officialMetaProvider.IsConfigured
+                || officialTikTokProvider.IsConfigured
+            )
         )
         {
             var results = new List<SocialCommentFetchResult>();
@@ -70,14 +93,26 @@ public sealed class CompositeSocialCommentProvider(
                             sourceUrls?.GetValueOrDefault(network),
                             cancellationToken
                         )
-                        : await apifyProvider.FetchAsync(
-                            network,
+                    : network == "tiktok" && officialTikTokProvider.IsConfigured
+                        ? await officialTikTokProvider.FetchAsync(
                             refresh,
-                            cancellationToken,
                             topic,
-                            sourceUrls,
-                            search
+                            search,
+                            sourceUrls?.GetValueOrDefault("tiktok"),
+                            from,
+                            to,
+                            cancellationToken
                         )
+                    : await apifyProvider.FetchAsync(
+                        network,
+                        refresh,
+                        cancellationToken,
+                        topic,
+                        sourceUrls,
+                        search,
+                        from,
+                        to
+                    )
                 );
             }
             results.Add(
@@ -95,7 +130,9 @@ public sealed class CompositeSocialCommentProvider(
                         cancellationToken,
                         topic,
                         sourceUrls,
-                        search
+                        search,
+                        from,
+                        to
                     )
             );
             return new SocialCommentFetchResult(
@@ -116,7 +153,9 @@ public sealed class CompositeSocialCommentProvider(
             cancellationToken,
             topic,
             sourceUrls,
-            search
+            search,
+            from,
+            to
         );
         if (liveResult.Comments.Count > 0)
         {
@@ -136,7 +175,9 @@ public sealed class CompositeSocialCommentProvider(
             cancellationToken,
             topic,
             sourceUrls,
-            search
+            search,
+            from,
+            to
         );
         var message =
             liveResult.Message

@@ -44,6 +44,8 @@ public class SocialMonitoring : IEndpointGroup
             return TypedResults.BadRequest(
                 "El umbral debe estar entre 1 y 100 puntos porcentuales."
             );
+        if (request.From is not null && request.To is not null && request.From > request.To)
+            return TypedResults.BadRequest("La fecha inicial no puede ser posterior a la fecha final.");
 
         var ownerId = GetOwnerId(context);
         var subscriptions = await sender.Send(
@@ -71,7 +73,12 @@ public class SocialMonitoring : IEndpointGroup
             existing?.PreviousNegativeRate,
             existing?.LastAlert,
             existing?.LastRunAt,
-            existing?.LastError
+            existing?.LastError,
+            request.From,
+            request.To,
+            request.Province?.Trim(),
+            request.Canton?.Trim(),
+            request.Parish?.Trim()
         );
         var result = await sender.Send(
             new SaveSocialMonitorSubscriptionCommand(subscription),
@@ -118,5 +125,10 @@ public sealed record SaveSocialMonitorRequest(
     string? Platform,
     string? Topic,
     string? Search,
-    IReadOnlyDictionary<string, string>? SourceUrls
+    IReadOnlyDictionary<string, string>? SourceUrls,
+    DateTimeOffset? From = null,
+    DateTimeOffset? To = null,
+    string? Province = null,
+    string? Canton = null,
+    string? Parish = null
 );

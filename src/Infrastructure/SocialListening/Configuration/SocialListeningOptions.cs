@@ -49,6 +49,8 @@ public sealed class SocialListeningOptions
     /// <summary>Posts recientes de X con paginación extra de comentarios.</summary>
     public int XRecentPostsBoost { get; init; } = 6;
 
+    public int TikTokMaxPosts { get; init; } = 12;
+
     /// <summary>URLs de publicación por llamada al actor de comentarios de IG/FB.</summary>
     public int CommentUrlBatchSize { get; init; } = 12;
 
@@ -72,6 +74,10 @@ public sealed class OfficialSocialApiOptions
     public string InstagramBusinessAccountIds { get; init; } = string.Empty;
 
     public string MetaGraphApiVersion { get; init; } = "v26.0";
+
+    public string TikTokResearchClientKey { get; init; } = string.Empty;
+
+    public string TikTokResearchClientSecret { get; init; } = string.Empty;
 }
 
 public sealed class ApifyActorOptions

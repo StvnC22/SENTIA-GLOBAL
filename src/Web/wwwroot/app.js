@@ -618,7 +618,7 @@ function applySavedSearch(id) {
 
 function exportExcelReport() {
   const comments = currentReportComments();
-  const rows = [["Red", "Usuario", "Comentario", "Publicación", "Sentimiento", "Confianza", "Emoción", "Temas", "Aspectos", "Entidades", "Reacciones", "Fecha", "Ubicación reportada", "URL"], ...comments.map(c => [c.platform, c.authorName, c.text, c.postTitle, c.sentiment?.displayName, `${c.sentiment?.confidence ?? ""}%`, c.insights?.emotion || "", (c.insights?.topics || []).join("; "), (c.insights?.aspects || []).join("; "), (c.insights?.entities || []).join("; "), c.reactions ?? "", c.publishedAt, c.placeName || [c.parish, c.canton, c.province].filter(Boolean).join(", "), c.postUrl])];
+  const rows = [["Red", "Tipo", "Usuario", "Texto", "Publicación", "Sentimiento", "Confianza", "Emoción", "Temas", "Aspectos", "Entidades", "Reacciones", "Fecha", "Ubicación reportada", "Código de región de cuenta", "URL"], ...comments.map(c => [c.platform, c.contentType === "post" ? "Publicación" : "Comentario", c.authorName, c.text, c.postTitle, c.sentiment?.displayName, `${c.sentiment?.confidence ?? ""}%`, c.insights?.emotion || "", (c.insights?.topics || []).join("; "), (c.insights?.aspects || []).join("; "), (c.insights?.entities || []).join("; "), c.reactions ?? "", c.publishedAt, c.placeName || [c.parish, c.canton, c.province].filter(Boolean).join(", "), c.regionCode || "", c.postUrl])];
   const columnName = index => {
     let name = "";
     for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26)) name = String.fromCharCode(65 + ((value - 1) % 26)) + name;
@@ -690,8 +690,8 @@ function printExecutiveReport() {
   const reportWindow = window.open("", "_blank");
   if (!reportWindow) { showToast("Permite las ventanas emergentes para guardar el informe PDF"); return; }
   const summary = document.getElementById("executiveSummary")?.textContent || "Sin resumen disponible.";
-  const rows = comments.map(c => `<tr><td>${escapeHtml(c.platform)}</td><td>${escapeHtml(c.text)}</td><td>${escapeHtml(c.sentiment?.displayName)}</td><td>${escapeHtml(c.publishedAt)}</td><td>${escapeHtml(c.placeName || [c.parish, c.canton, c.province].filter(Boolean).join(", "))}</td><td><a href="${escapeHtml(c.postUrl)}">Abrir publicación</a></td></tr>`).join("");
-  reportWindow.document.write(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Informe Sentia Global</title><style>body{font:14px Arial;margin:32px;color:#172033}h1{color:#075985}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccd3dd;padding:7px;text-align:left;vertical-align:top}th{background:#e8f2fa}p{line-height:1.5}</style><h1>Observatorio Territorial · Análisis de sentimientos</h1><p>${escapeHtml(summary)}</p><p>Comentarios incluidos: ${comments.length}</p><table><thead><tr><th>Red</th><th>Comentario</th><th>Sentimiento</th><th>Fecha</th><th>Ubicación reportada</th><th>Fuente</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></html>`);
+  const rows = comments.map(c => `<tr><td>${escapeHtml(c.platform)}</td><td>${c.contentType === "post" ? "Publicación" : "Comentario"}</td><td>${escapeHtml(c.text)}</td><td>${escapeHtml(c.sentiment?.displayName)}</td><td>${escapeHtml(c.publishedAt)}</td><td>${escapeHtml(c.placeName || [c.parish, c.canton, c.province].filter(Boolean).join(", "))}${c.regionCode ? ` · Región de registro: ${escapeHtml(c.regionCode)}` : ""}</td><td><a href="${escapeHtml(c.postUrl)}">Abrir publicación</a></td></tr>`).join("");
+  reportWindow.document.write(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Informe Sentia Global</title><style>body{font:14px Arial;margin:32px;color:#172033}h1{color:#075985}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccd3dd;padding:7px;text-align:left;vertical-align:top}th{background:#e8f2fa}p{line-height:1.5}</style><h1>Observatorio Territorial · Análisis de sentimientos</h1><p>${escapeHtml(summary)}</p><p>Publicaciones y comentarios incluidos: ${comments.length}</p><table><thead><tr><th>Red</th><th>Tipo</th><th>Texto</th><th>Sentimiento</th><th>Fecha</th><th>Ubicación / región</th><th>Fuente</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></html>`);
   reportWindow.document.close();
 }
 
@@ -736,6 +736,11 @@ async function toggleMonitor() {
         platform: ["all", "global"].includes(rawPlatform) ? null : rawPlatform,
         topic: document.getElementById("topicInput")?.value?.trim() || null,
         search: document.getElementById("searchInput")?.value?.trim() || null,
+        from: document.getElementById("dateFromFilter")?.value ? new Date(`${document.getElementById("dateFromFilter").value}T00:00:00`).toISOString() : null,
+        to: document.getElementById("dateToFilter")?.value ? new Date(`${document.getElementById("dateToFilter").value}T23:59:59.999`).toISOString() : null,
+        province: document.getElementById("provinceFilter")?.value?.trim() || null,
+        canton: document.getElementById("cantonFilter")?.value?.trim() || null,
+        parish: document.getElementById("parishFilter")?.value?.trim() || null,
         sourceUrls: sources
       })
     });
@@ -766,13 +771,14 @@ function renderCommentRow(comment, showNetworkBadge = true) {
   const date = new Date(comment.publishedAt);
   const netBadge = showNetworkBadge ? `<td data-label="Red"><span class="history-net-pill ${escapeHtml(comment.platform)}">${escapeHtml(comment.platform)}</span></td>` : "";
   const insights = comment.insights;
-  const insightDetails = insights
-    ? `<small class="confidence">Emoción: ${escapeHtml(insights.emotion)}${insights.aspects?.length ? ` · Aspectos: ${escapeHtml(insights.aspects.join(", "))}` : ""}${insights.entities?.length ? ` · Entidades: ${escapeHtml(insights.entities.join(", "))}` : ""}${comment.placeName ? ` · Lugar reportado: ${escapeHtml(comment.placeName)}` : ""}</small>`
+  const insightDetails = insights || comment.regionCode || comment.placeName
+    ? `<small class="confidence">${insights ? `Emoción: ${escapeHtml(insights.emotion)}${insights.aspects?.length ? ` · Aspectos: ${escapeHtml(insights.aspects.join(", "))}` : ""}${insights.entities?.length ? ` · Entidades: ${escapeHtml(insights.entities.join(", "))}` : ""}` : ""}${comment.placeName ? ` · Lugar reportado: ${escapeHtml(comment.placeName)}` : ""}${comment.regionCode ? ` · Región de registro de cuenta: ${escapeHtml(comment.regionCode)}` : ""}</small>`
     : "";
+  const contentLabel = comment.contentType === "post" ? "Publicación" : "Comentario";
   return `<tr>
     ${netBadge}
     <td data-label="Usuario"><a class="user-link" href="${escapeHtml(comment.authorUrl)}" target="_blank" rel="noopener noreferrer"><span class="user-avatar">${escapeHtml(initials(comment.authorName))}</span><span class="user-info"><strong>${escapeHtml(comment.authorName)}</strong><span>${escapeHtml(comment.authorHandle)}</span></span></a></td>
-    <td data-label="Comentario"><a class="comment-link" href="${escapeHtml(comment.commentUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(comment.text)}</a>${insightDetails}${comment.isLikelySpam || comment.isLikelyBot ? '<small class="confidence">Revisar: posible spam o actividad automatizada</small>' : ""}</td>
+    <td data-label="Publicación o comentario"><small class="confidence">${contentLabel}</small><a class="comment-link" href="${escapeHtml(comment.commentUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(comment.text)}</a>${insightDetails}${comment.isLikelySpam || comment.isLikelyBot ? '<small class="confidence">Revisar: posible spam o actividad automatizada</small>' : ""}</td>
     <td data-label="Publicación"><a class="post-link" href="${escapeHtml(comment.postUrl)}" target="_blank" rel="noopener noreferrer"><span>${escapeHtml(comment.postTitle)}</span></a></td>
     <td data-label="Sentimiento"><span class="sentiment ${escapeHtml(comment.sentiment.label)}"><i></i>${escapeHtml(comment.sentiment.displayName)}</span><span class="confidence">${comment.sentiment.confidence}% confianza</span></td>
     <td class="date" data-label="Fecha"><strong>${escapeHtml(formatDay(date))}</strong><span>${escapeHtml(formatTime(date))}</span></td>
@@ -1818,8 +1824,8 @@ function initEventHandlers() {
         : filterComments(platform, state.sentiment, document.querySelector(`.table-search-input[data-platform="${platform}"]`)?.value || "", state.sort);
       
       const rows = [
-        ["Red", "Usuario", "Comentario", "URL comentario", "Publicación", "URL publicación", "Emoción", "Confianza", "Fecha", "Ubicación reportada"],
-        ...comments.map(item => [item.platform, item.authorName, item.text, item.commentUrl, item.postTitle, item.postUrl, item.sentiment.displayName, `${item.sentiment.confidence}%`, item.publishedAt, item.placeName || [item.parish, item.canton, item.province].filter(Boolean).join(", ")])
+        ["Red", "Tipo", "Usuario", "Texto", "URL de origen", "Publicación", "URL publicación", "Emoción", "Confianza", "Fecha", "Ubicación reportada", "Código de región de cuenta"],
+        ...comments.map(item => [item.platform, item.contentType === "post" ? "Publicación" : "Comentario", item.authorName, item.text, item.commentUrl, item.postTitle, item.postUrl, item.sentiment.displayName, `${item.sentiment.confidence}%`, item.publishedAt, item.placeName || [item.parish, item.canton, item.province].filter(Boolean).join(", "), item.regionCode || ""])
       ];
 
       const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");

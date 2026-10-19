@@ -242,7 +242,8 @@ public sealed partial class OfficialXSocialCommentProvider(
             url,
             publishedAt,
             Reactions: likes,
-            PlaceName: placeName
+            PlaceName: placeName,
+            ContentType: "post"
         );
     }
 

@@ -33,7 +33,9 @@ internal class GetSocialCommentsQueryHandler(
             cancellationToken,
             request.Topic,
             request.SourceUrls,
-            request.Search
+            request.Search,
+            request.From,
+            request.To
         );
         var drafts = fetchResult.Comments;
 
@@ -73,7 +75,9 @@ internal class GetSocialCommentsQueryHandler(
                     draft.Reactions,
                     insights,
                     SocialTextInsightsAnalyzer.IsLikelySpam(draft.Text),
-                    PlaceName: draft.PlaceName
+                    PlaceName: draft.PlaceName,
+                    RegionCode: draft.RegionCode,
+                    ContentType: draft.ContentType
                 );
             })
             .Where(comment =>
@@ -82,6 +86,7 @@ internal class GetSocialCommentsQueryHandler(
             )
             .Where(comment => request.From is null || comment.PublishedAt >= request.From)
             .Where(comment => request.To is null || comment.PublishedAt <= request.To)
+            .Where(comment => MatchesSearch(comment, request.Topic))
             .Where(comment => MatchesSearch(comment, request.Search))
             .Where(comment =>
                 MatchesLocation(comment.Province, comment.PlaceName, request.Province)
@@ -250,7 +255,13 @@ internal class GetSocialCommentsQueryHandler(
 
     private static string GetDeduplicationKey(SocialComment comment)
     {
-        if (Uri.TryCreate(comment.CommentUrl, UriKind.Absolute, out var commentUri))
+        if (
+            Uri.TryCreate(comment.CommentUrl, UriKind.Absolute, out var commentUri)
+            && (
+                !Uri.TryCreate(comment.PostUrl, UriKind.Absolute, out var postUri)
+                || commentUri.AbsoluteUri != postUri.AbsoluteUri
+            )
+        )
         {
             var canonicalUri = new UriBuilder(commentUri)
             {
@@ -422,7 +433,9 @@ public record SocialComment(
     SocialTextInsights? Insights = null,
     bool IsLikelySpam = false,
     bool IsLikelyBot = false,
-    string? PlaceName = null
+    string? PlaceName = null,
+    string? RegionCode = null,
+    string ContentType = "comment"
 );
 
 public record SentimentResult(string Label, string DisplayName, int Confidence);

@@ -25,7 +25,9 @@ public sealed class ApifySocialCommentProvider(
         CancellationToken cancellationToken,
         string? topic = null,
         IReadOnlyDictionary<string, string>? sourceUrls = null,
-        string? search = null
+        string? search = null,
+        DateTimeOffset? from = null,
+        DateTimeOffset? to = null
     )
     {
         var credentials = await credentialStore.GetAsync(cancellationToken);

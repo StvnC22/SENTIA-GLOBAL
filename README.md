@@ -225,9 +225,13 @@ dotnet user-secrets set "Parameters:x-api-bearer-token" "TOKEN_DE_X" --project s
 dotnet user-secrets set "Parameters:meta-access-token" "TOKEN_DE_META" --project src\AppHost
 dotnet user-secrets set "Parameters:meta-facebook-page-ids" "ID_PAGINA" --project src\AppHost
 dotnet user-secrets set "Parameters:meta-instagram-account-ids" "ID_CUENTA_PROFESIONAL" --project src\AppHost
+dotnet user-secrets set "Parameters:tiktok-research-client-key" "CLIENT_KEY_DE_TIKTOK" --project src\AppHost
+dotnet user-secrets set "Parameters:tiktok-research-client-secret" "CLIENT_SECRET_DE_TIKTOK" --project src\AppHost
 ```
 
-Se pueden separar varios IDs con comas. El token de Meta debe tener los permisos aprobados para leer las páginas y cuentas profesionales indicadas. Facebook consulta publicaciones de esas Pages e Instagram consulta medios y comentarios de esas cuentas; la API no busca publicaciones públicas arbitrarias por palabra clave. La consulta se aplica sobre el texto de los posts y comentarios recuperados. TikTok continúa usando el proveedor configurado hasta que haya acceso a su API oficial de investigación.
+Se pueden separar varios IDs con comas. El token de Meta debe tener los permisos aprobados para leer las páginas y cuentas profesionales indicadas. Facebook consulta publicaciones de esas Pages e Instagram consulta medios y comentarios de esas cuentas; la API no busca publicaciones públicas arbitrarias por palabra clave. La consulta se aplica sobre el texto de los posts y comentarios recuperados. TikTok usa Research API cuando se configuran las credenciales del proyecto aprobado y conserva el proveedor alternativo si no están configuradas.
+
+El conector TikTok Research API obtiene y renueva el token de cliente desde Client Key y Client Secret. El proyecto de investigación debe estar aprobado y contar con el scope `research.data.basic`; la API oficial solo devuelve hasta 30 días por consulta, por lo que el conector divide internamente rangos mayores. TikTok devuelve código de región de registro de la cuenta, no ubicación geográfica precisa del autor o publicación.
 
 El secret declarado así se pasa al recurso que lo necesite desde `src/AppHost/Program.cs` (`builder.AddParameter("NombreDelSecret", secret: true)`). El archivo con los valores reales vive fuera del repo, en el perfil del usuario, y nunca se commitea.
 

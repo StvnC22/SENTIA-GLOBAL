@@ -160,7 +160,12 @@ public sealed class ScheduledSocialMonitorService(
                         Refresh: true,
                         Topic: subscription.Topic,
                         SourceUrls: subscription.SourceUrls,
-                        Search: subscription.Search
+                        Search: subscription.Search,
+                        From: subscription.From,
+                        To: subscription.To,
+                        Province: subscription.Province,
+                        Canton: subscription.Canton,
+                        Parish: subscription.Parish
                     ),
                     cancellationToken
                 );
@@ -175,11 +180,13 @@ public sealed class ScheduledSocialMonitorService(
                 if (
                     rate is not null
                     && subscription.PreviousNegativeRate is not null
-                    && rate - subscription.PreviousNegativeRate >= subscription.AlertThreshold
+                    && Math.Abs(rate.Value - subscription.PreviousNegativeRate.Value)
+                        >= subscription.AlertThreshold
                 )
                 {
+                    var direction = rate > subscription.PreviousNegativeRate ? "Subió" : "Bajó";
                     alert =
-                        $"Subió el sentimiento negativo de {subscription.PreviousNegativeRate}% a {rate}%";
+                        $"{direction} el sentimiento negativo de {subscription.PreviousNegativeRate}% a {rate}%";
                 }
                 await monitorStore.SaveAsync(
                     subscription with

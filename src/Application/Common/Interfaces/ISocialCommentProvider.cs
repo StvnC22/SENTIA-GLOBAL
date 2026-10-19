@@ -8,7 +8,9 @@ public interface ISocialCommentProvider
         CancellationToken cancellationToken,
         string? topic = null,
         IReadOnlyDictionary<string, string>? sourceUrls = null,
-        string? search = null
+        string? search = null,
+        DateTimeOffset? from = null,
+        DateTimeOffset? to = null
     );
 }
 
@@ -42,7 +44,9 @@ public sealed record SocialCommentDraft(
     string? Canton = null,
     string? Parish = null,
     int? Reactions = null,
-    string? PlaceName = null
+    string? PlaceName = null,
+    string? RegionCode = null,
+    string ContentType = "comment"
 );
 
 public interface ISocialMonitorStore
@@ -73,7 +77,12 @@ public sealed record SocialMonitorSubscription(
     int? PreviousNegativeRate = null,
     string? LastAlert = null,
     DateTimeOffset? LastRunAt = null,
-    string? LastError = null
+    string? LastError = null,
+    DateTimeOffset? From = null,
+    DateTimeOffset? To = null,
+    string? Province = null,
+    string? Canton = null,
+    string? Parish = null
 );
 
 public interface IAuditActivityStore

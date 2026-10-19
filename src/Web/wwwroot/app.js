@@ -1302,6 +1302,16 @@ async function fetchPlatformComments(item, { force, signal, prompt, topic }) {
   query.set(`${item.platform}Url`, item.url);
   if (prompt) query.set("prompt", prompt);
   if (topic) query.set("topic", topic);
+  const search = document.getElementById("searchInput")?.value?.trim();
+  const from = document.getElementById("dateFromFilter")?.value;
+  const to = document.getElementById("dateToFilter")?.value;
+  if (search) query.set("search", search);
+  if (from) query.set("from", new Date(`${from}T00:00:00`).toISOString());
+  if (to) query.set("to", new Date(`${to}T23:59:59.999`).toISOString());
+  for (const [field, key] of [["provinceFilter", "province"], ["cantonFilter", "canton"], ["parishFilter", "parish"]]) {
+    const value = document.getElementById(field)?.value?.trim();
+    if (value) query.set(key, value);
+  }
   if (force || isDirectPostUrl(item.platform, item.url)) {
     query.set("refresh", "true");
   }

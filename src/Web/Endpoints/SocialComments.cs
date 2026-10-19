@@ -23,7 +23,13 @@ public class SocialComments : IEndpointGroup
         string? instagramUrl = null,
         string? facebookUrl = null,
         string? tiktokUrl = null,
-        string? xUrl = null
+        string? xUrl = null,
+        string? search = null,
+        DateTimeOffset? from = null,
+        DateTimeOffset? to = null,
+        string? province = null,
+        string? canton = null,
+        string? parish = null
     )
     {
         var sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -31,12 +37,27 @@ public class SocialComments : IEndpointGroup
         AddSource(sources, "facebook", facebookUrl);
         AddSource(sources, "tiktok", tiktokUrl);
         AddSource(sources, "x", xUrl);
-        var dashboard = await sender.Send(new GetSocialCommentsQuery(platform, refresh, topic, prompt, sources));
+        var dashboard = await sender.Send(
+            new GetSocialCommentsQuery(
+                platform,
+                refresh,
+                topic,
+                prompt,
+                sources,
+                search,
+                from,
+                to,
+                province,
+                canton,
+                parish
+            )
+        );
         return TypedResults.Ok(dashboard);
     }
 
     private static void AddSource(IDictionary<string, string> sources, string platform, string? url)
     {
-        if (!string.IsNullOrWhiteSpace(url)) sources[platform] = url.Trim();
+        if (!string.IsNullOrWhiteSpace(url))
+            sources[platform] = url.Trim();
     }
 }

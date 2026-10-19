@@ -7,9 +7,14 @@ public record GetSocialCommentsQuery(
     bool Refresh = false,
     string? Topic = null,
     string? Prompt = null,
-    IReadOnlyDictionary<string, string>? SourceUrls = null
-)
-    : IQuery<SocialListeningDashboard>;
+    IReadOnlyDictionary<string, string>? SourceUrls = null,
+    string? Search = null,
+    DateTimeOffset? From = null,
+    DateTimeOffset? To = null,
+    string? Province = null,
+    string? Canton = null,
+    string? Parish = null
+) : IQuery<SocialListeningDashboard>;
 
 internal class GetSocialCommentsQueryHandler(
     ISocialCommentProvider commentProvider,
@@ -59,13 +64,23 @@ internal class GetSocialCommentsQueryHandler(
                     draft.PostTitle,
                     draft.PostUrl,
                     draft.PublishedAt,
-                    sentiment
+                    sentiment,
+                    draft.Province,
+                    draft.Canton,
+                    draft.Parish,
+                    draft.Reactions
                 );
             })
             .Where(comment =>
                 string.IsNullOrWhiteSpace(request.Platform)
                 || comment.Platform.Equals(request.Platform, StringComparison.OrdinalIgnoreCase)
             )
+            .Where(comment => request.From is null || comment.PublishedAt >= request.From)
+            .Where(comment => request.To is null || comment.PublishedAt <= request.To)
+            .Where(comment => MatchesSearch(comment, request.Search))
+            .Where(comment => MatchesLocation(comment.Province, request.Province))
+            .Where(comment => MatchesLocation(comment.Canton, request.Canton))
+            .Where(comment => MatchesLocation(comment.Parish, request.Parish))
             .OrderByDescending(comment => comment.PublishedAt)
             .ToArray();
 
@@ -84,6 +99,102 @@ internal class GetSocialCommentsQueryHandler(
             fetchResult.Message
         );
     }
+
+    private static bool MatchesSearch(SocialComment comment, string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return true;
+        var source = Normalize(
+            $"{comment.AuthorName} {comment.AuthorHandle} {comment.Text} {comment.PostTitle}"
+        );
+        var tokens = System
+            .Text.RegularExpressions.Regex.Matches(
+                query,
+                "\"([^\"]+)\"|\\b(AND|OR|NOT)\\b|[()]|[^\\s()]+",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            )
+            .Select(match => match.Value.Trim('"'))
+            .ToArray();
+        var index = 0;
+        bool Term()
+        {
+            if (index >= tokens.Length)
+                throw new FormatException();
+            if (tokens[index].Equals("NOT", StringComparison.OrdinalIgnoreCase))
+            {
+                index++;
+                return !Term();
+            }
+            if (tokens[index] == "(")
+            {
+                index++;
+                var nested = Expression();
+                if (index >= tokens.Length || tokens[index++] != ")")
+                    throw new FormatException();
+                return nested;
+            }
+            var value = tokens[index++];
+            if (value is ")" or "AND" or "OR")
+                throw new FormatException();
+            return source.Contains(Normalize(value), StringComparison.Ordinal);
+        }
+        bool And()
+        {
+            var value = Term();
+            while (
+                index < tokens.Length
+                && tokens[index].Equals("AND", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                index++;
+                var next = Term();
+                value &= next;
+            }
+            return value;
+        }
+        bool Expression()
+        {
+            var value = And();
+            while (
+                index < tokens.Length
+                && tokens[index].Equals("OR", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                index++;
+                var next = And();
+                value |= next;
+            }
+            return value;
+        }
+        try
+        {
+            return tokens.Length == 0 || Expression() && index == tokens.Length;
+        }
+        catch (FormatException)
+        {
+            return source.Contains(Normalize(query), StringComparison.Ordinal);
+        }
+    }
+
+    private static string Normalize(string value) =>
+        value
+            .Normalize(System.Text.NormalizationForm.FormD)
+            .Where(character =>
+                System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character)
+                != System.Globalization.UnicodeCategory.NonSpacingMark
+            )
+            .Aggregate(
+                new System.Text.StringBuilder(),
+                (builder, character) => builder.Append(char.ToLowerInvariant(character))
+            )
+            .ToString();
+
+    private static bool MatchesLocation(string? actual, string? expected) =>
+        string.IsNullOrWhiteSpace(expected)
+        || (
+            !string.IsNullOrWhiteSpace(actual)
+            && Normalize(actual).Contains(Normalize(expected), StringComparison.Ordinal)
+        );
 }
 
 public static class SpanishSentimentAnalyzer
@@ -223,7 +334,11 @@ public record SocialComment(
     string PostTitle,
     string PostUrl,
     DateTimeOffset PublishedAt,
-    SentimentResult Sentiment = null!
+    SentimentResult Sentiment = null!,
+    string? Province = null,
+    string? Canton = null,
+    string? Parish = null,
+    int? Reactions = null
 );
 
 public record SentimentResult(string Label, string DisplayName, int Confidence);

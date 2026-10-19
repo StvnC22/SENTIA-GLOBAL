@@ -36,5 +36,9 @@ public sealed record SocialCommentDraft(
     string CommentUrl,
     string PostTitle,
     string PostUrl,
-    DateTimeOffset PublishedAt
+    DateTimeOffset PublishedAt,
+    string? Province = null,
+    string? Canton = null,
+    string? Parish = null,
+    int? Reactions = null
 );

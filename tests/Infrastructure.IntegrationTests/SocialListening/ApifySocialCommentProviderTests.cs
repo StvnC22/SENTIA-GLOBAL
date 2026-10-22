@@ -19,49 +19,49 @@ public class ApifySocialCommentProviderTests
             .AddActor(
                 "igolaizola~x-twitter-scraper",
                 """
-            [
-              {
-                "id": "2031483366751556015",
-                "text": "Publicación ULEAM",
-                "permalink": "https://x.com/UleamEcuador/status/2031483366751556015",
-                "createdAt": "2026-03-10T21:32:32Z"
-              }
-            ]
-            """
+                [
+                  {
+                    "id": "2031483366751556015",
+                    "text": "Publicación ULEAM",
+                    "permalink": "https://x.com/UleamEcuador/status/2031483366751556015",
+                    "createdAt": "2026-03-10T21:32:32Z"
+                  }
+                ]
+                """
             )
             .AddActor(
                 "iron-crawler~twitter-comments",
                 """
-            [
-              {
-                "id": "2039999999999999999",
-                "text": "Comentario bajo el post",
-                "created_at": "Wed Sep 02 17:26:46 +0000 2026",
-                "author": { "screen_name": "kuznetsov_52890", "name": "Oleg" }
-              },
-              {
-                "id": "2040000000000000001",
-                "in_reply_to_status_id_str": "2039999999999999999",
-                "text": "Respuesta anidada",
-                "created_at": "Wed Sep 02 18:00:00 +0000 2026",
-                "author": { "screen_name": "ana_ec", "name": "Ana" }
-              }
-            ]
-            """
+                [
+                  {
+                    "id": "2039999999999999999",
+                    "text": "Comentario bajo el post",
+                    "created_at": "Wed Sep 02 17:26:46 +0000 2026",
+                    "author": { "screen_name": "kuznetsov_52890", "name": "Oleg" }
+                  },
+                  {
+                    "id": "2040000000000000001",
+                    "in_reply_to_status_id_str": "2039999999999999999",
+                    "text": "Respuesta anidada",
+                    "created_at": "Wed Sep 02 18:00:00 +0000 2026",
+                    "author": { "screen_name": "ana_ec", "name": "Ana" }
+                  }
+                ]
+                """
             )
             .AddActor(
                 "apidojo~tweet-scraper",
                 """
-            [
-              {
-                "id": "1738106896777699465",
-                "url": "https://x.com/juan_ec/status/1738106896777699465",
-                "text": "Mención directa a ULEAM",
-                "createdAt": "Wed Jan 08 10:00:00 +0000 2025",
-                "author": { "userName": "juan_ec", "name": "Juan" }
-              }
-            ]
-            """
+                [
+                  {
+                    "id": "1738106896777699465",
+                    "url": "https://x.com/juan_ec/status/1738106896777699465",
+                    "text": "Mención directa a ULEAM",
+                    "createdAt": "Wed Jan 08 10:00:00 +0000 2025",
+                    "author": { "userName": "juan_ec", "name": "Juan" }
+                  }
+                ]
+                """
             );
 
         var provider = CreateProvider(handler);
@@ -94,32 +94,32 @@ public class ApifySocialCommentProviderTests
             .AddActor(
                 "igolaizola~x-twitter-scraper",
                 """
-            [
-              {
-                "id": "2031483366751556015",
-                "text": "ULEAM informa sobre nuevo proceso de admisiones",
-                "permalink": "https://x.com/UleamEcuador/status/2031483366751556015",
-                "createdAt": "2026-03-10T21:32:32Z"
-              }
-            ]
-            """
+                [
+                  {
+                    "id": "2031483366751556015",
+                    "text": "ULEAM informa sobre nuevo proceso de admisiones",
+                    "permalink": "https://x.com/UleamEcuador/status/2031483366751556015",
+                    "createdAt": "2026-03-10T21:32:32Z"
+                  }
+                ]
+                """
             )
             .AddActor(
                 "iron-crawler~twitter-comments",
                 """
-            [
-              {
-                "id": "2039999999999999999",
-                "conversation_id": "2031483366751556015",
-                "text": "Hmm... interesting",
-                "created_at": "Wed Sep 02 17:26:46 +0000 2026",
-                "author": {
-                  "screen_name": "kuznetsov_52890",
-                  "name": "Oleg"
-                }
-              }
-            ]
-            """
+                [
+                  {
+                    "id": "2039999999999999999",
+                    "conversation_id": "2031483366751556015",
+                    "text": "Hmm... interesting",
+                    "created_at": "Wed Sep 02 17:26:46 +0000 2026",
+                    "author": {
+                      "screen_name": "kuznetsov_52890",
+                      "name": "Oleg"
+                    }
+                  }
+                ]
+                """
             )
             .AddActor("apidojo~tweet-scraper", "[]");
 
@@ -259,7 +259,10 @@ public class ApifySocialCommentProviderTests
         Dictionary<string, string>? profiles = null
     )
     {
-        var credentialStore = new StubCredentialStore("apify-token", includeTikTok ? "tiktok-token" : null);
+        var credentialStore = new StubCredentialStore(
+            "apify-token",
+            includeTikTok ? "tiktok-token" : null
+        );
         profiles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["x"] = "https://x.com/UleamEcuador",

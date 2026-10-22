@@ -17,7 +17,8 @@ public record CreateScheduledMonitorCommand(
     string? Parish = null
 ) : ICommand<ScheduledMonitorDto>;
 
-public class CreateScheduledMonitorCommandValidator : AbstractValidator<CreateScheduledMonitorCommand>
+public class CreateScheduledMonitorCommandValidator
+    : AbstractValidator<CreateScheduledMonitorCommand>
 {
     public CreateScheduledMonitorCommandValidator()
     {

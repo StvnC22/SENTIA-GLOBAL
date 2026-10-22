@@ -1,5 +1,7 @@
+using AnalisisSentimiento.Application.Monitoring.Commands.LogActivity;
 using AnalisisSentimiento.Application.SocialListening.Queries.GetSocialComments;
 using AnalisisSentimiento.Application.SocialListening.Territory;
+using AnalisisSentimiento.Web.Reports;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace AnalisisSentimiento.Web.Endpoints;
@@ -62,8 +64,8 @@ public class SocialComments : IEndpointGroup
     [EndpointSummary("Catálogo territorial de Manabí")]
     public static Ok<TerritoryCatalogResponse> GetTerritoryCatalog()
     {
-        var cantons = ManabiTerritoryCatalog.Cantons
-            .Select(c => new TerritoryCantonDto(c.Name, c.Parishes))
+        var cantons = ManabiTerritoryCatalog
+            .Cantons.Select(c => new TerritoryCantonDto(c.Name, c.Parishes))
             .ToArray();
 
         return TypedResults.Ok(
@@ -72,8 +74,10 @@ public class SocialComments : IEndpointGroup
     }
 
     [EndpointSummary("Exportar resultados de escucha social")]
-    [EndpointDescription("Exporta CSV, Excel (SpreadsheetML) o un informe HTML imprimible (PDF).")]
-    public static async Task<Results<FileContentHttpResult, BadRequest<string>>> ExportSocialComments(
+    [EndpointDescription("Exporta CSV, Excel (.xlsx) o un informe PDF con resumen ejecutivo.")]
+    public static async Task<
+        Results<FileContentHttpResult, BadRequest<string>>
+    > ExportSocialComments(
         ISender sender,
         string format = "csv",
         string? platform = null,
@@ -111,28 +115,45 @@ public class SocialComments : IEndpointGroup
             )
         );
 
+        var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
         var normalized = format.Trim().ToLowerInvariant();
-        return normalized switch
+        FileContentHttpResult? file = normalized switch
         {
             "csv" => TypedResults.File(
-                System.Text.Encoding.UTF8.GetPreamble()
-                    .Concat(System.Text.Encoding.UTF8.GetBytes(SocialCommentsExport.ToCsv(dashboard)))
+                System
+                    .Text.Encoding.UTF8.GetPreamble()
+                    .Concat(
+                        System.Text.Encoding.UTF8.GetBytes(SocialCommentsExport.ToCsv(dashboard))
+                    )
                     .ToArray(),
                 "text/csv; charset=utf-8",
-                $"sentia-observatorio-{DateTime.UtcNow:yyyyMMddHHmmss}.csv"
+                $"sentia-observatorio-{stamp}.csv"
             ),
             "excel" or "xlsx" or "xls" => TypedResults.File(
-                System.Text.Encoding.UTF8.GetBytes(SocialCommentsExport.ToExcelXml(dashboard)),
-                "application/vnd.ms-excel",
-                $"sentia-observatorio-{DateTime.UtcNow:yyyyMMddHHmmss}.xls"
+                SocialCommentsExport.ToXlsx(dashboard, topic),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"sentia-observatorio-{stamp}.xlsx"
             ),
-            "pdf" or "html" => TypedResults.File(
-                System.Text.Encoding.UTF8.GetBytes(SocialCommentsExport.ToPrintableHtml(dashboard, topic)),
-                "text/html; charset=utf-8",
-                $"sentia-observatorio-{DateTime.UtcNow:yyyyMMddHHmmss}.html"
+            "pdf" => TypedResults.File(
+                SocialCommentsExport.ToPdf(dashboard, topic, fromDate, toDate, canton ?? province),
+                "application/pdf",
+                $"sentia-observatorio-{stamp}.pdf"
             ),
-            _ => TypedResults.BadRequest("Formato no soportado. Use csv, excel o pdf."),
+            _ => null,
         };
+
+        if (file is null)
+        {
+            return TypedResults.BadRequest("Formato no soportado. Use csv, excel o pdf.");
+        }
+
+        await sender.Send(
+            new LogActivityCommand(
+                "report.exported",
+                $"Exportación {normalized.ToUpperInvariant()} · tema «{topic ?? "general"}» · {dashboard.Summary.Total} opiniones"
+            )
+        );
+        return file;
     }
 
     private static void AddSource(IDictionary<string, string> sources, string platform, string? url)
@@ -152,7 +173,7 @@ internal static class SocialCommentsExport
     {
         var rows = new List<string>
         {
-            "Red,Usuario,Comentario,Publicacion,URL_comentario,URL_publicacion,Sentimiento,Confianza,Provincia,Canton,Parroquia,Reacciones,Temas,Entidades,Emociones,Fecha"
+            "Red,Usuario,Comentario,Publicacion,URL_comentario,URL_publicacion,Sentimiento,Confianza,Provincia,Canton,Parroquia,Reacciones,Temas,Aspectos,Entidades,Emociones,Fecha",
         };
 
         foreach (var c in dashboard.Comments)
@@ -173,6 +194,7 @@ internal static class SocialCommentsExport
                     Csv(c.Parish),
                     c.ReactionCount,
                     Csv(string.Join("|", c.Topics ?? [])),
+                    Csv(FormatAspects(c)),
                     Csv(string.Join("|", c.Entities ?? [])),
                     Csv(string.Join("|", c.Emotions ?? [])),
                     Csv(c.PublishedAt.ToString("o"))
@@ -186,91 +208,386 @@ internal static class SocialCommentsExport
         return string.Join("\n", rows);
     }
 
-    public static string ToExcelXml(SocialListeningDashboard dashboard)
+    public static byte[] ToXlsx(SocialListeningDashboard dashboard, string? topic)
     {
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("""<?xml version="1.0"?>""");
-        sb.AppendLine("""<?mso-application progid="Excel.Sheet"?>""");
-        sb.AppendLine("""<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">""");
-        sb.AppendLine("<Worksheet ss:Name=\"Opiniones\"><Table>");
-        sb.AppendLine(
-            "<Row><Cell><Data ss:Type=\"String\">Red</Data></Cell><Cell><Data ss:Type=\"String\">Usuario</Data></Cell><Cell><Data ss:Type=\"String\">Comentario</Data></Cell><Cell><Data ss:Type=\"String\">Sentimiento</Data></Cell><Cell><Data ss:Type=\"String\">Confianza</Data></Cell><Cell><Data ss:Type=\"String\">Provincia</Data></Cell><Cell><Data ss:Type=\"String\">Canton</Data></Cell><Cell><Data ss:Type=\"String\">Parroquia</Data></Cell><Cell><Data ss:Type=\"String\">URL</Data></Cell><Cell><Data ss:Type=\"String\">Fecha</Data></Cell></Row>"
-        );
-
-        foreach (var c in dashboard.Comments)
+        var opinions = new List<IReadOnlyList<object?>>
         {
-            sb.Append("<Row>");
-            sb.Append(Cell(c.Platform));
-            sb.Append(Cell(c.AuthorName));
-            sb.Append(Cell(c.Text));
-            sb.Append(Cell(c.Sentiment.DisplayName));
-            sb.Append(CellNumber(c.Sentiment.Confidence));
-            sb.Append(Cell(c.Province));
-            sb.Append(Cell(c.Canton));
-            sb.Append(Cell(c.Parish));
-            sb.Append(Cell(c.PostUrl));
-            sb.Append(Cell(c.PublishedAt.ToString("yyyy-MM-dd HH:mm")));
-            sb.AppendLine("</Row>");
-        }
-
-        sb.AppendLine("</Table></Worksheet>");
-        sb.AppendLine("<Worksheet ss:Name=\"Resumen\"><Table>");
-        sb.AppendLine("<Row><Cell><Data ss:Type=\"String\">Resumen ejecutivo</Data></Cell></Row>");
-        sb.Append("<Row>").Append(Cell(dashboard.Insights?.ExecutiveSummary ?? "")).AppendLine("</Row>");
-        sb.AppendLine(
-            $"<Row><Cell><Data ss:Type=\"String\">Total</Data></Cell><Cell><Data ss:Type=\"Number\">{dashboard.Summary.Total}</Data></Cell></Row>"
-        );
-        sb.AppendLine(
-            $"<Row><Cell><Data ss:Type=\"String\">Positivos</Data></Cell><Cell><Data ss:Type=\"Number\">{dashboard.Summary.Positive}</Data></Cell></Row>"
-        );
-        sb.AppendLine(
-            $"<Row><Cell><Data ss:Type=\"String\">Neutrales</Data></Cell><Cell><Data ss:Type=\"Number\">{dashboard.Summary.Neutral}</Data></Cell></Row>"
-        );
-        sb.AppendLine(
-            $"<Row><Cell><Data ss:Type=\"String\">Negativos</Data></Cell><Cell><Data ss:Type=\"Number\">{dashboard.Summary.Negative}</Data></Cell></Row>"
-        );
-        sb.AppendLine("</Table></Worksheet></Workbook>");
-        return sb.ToString();
-    }
-
-    public static string ToPrintableHtml(SocialListeningDashboard dashboard, string? topic)
-    {
-        var summary = dashboard.Insights?.ExecutiveSummary ?? "";
-        var rows = string.Join(
-            "",
+            new object?[]
+            {
+                "Red",
+                "Usuario",
+                "Comentario",
+                "Publicación",
+                "Sentimiento",
+                "Confianza %",
+                "Provincia",
+                "Cantón",
+                "Parroquia",
+                "Reacciones",
+                "Temas",
+                "Aspectos",
+                "Emociones",
+                "Entidades",
+                "Fecha",
+                "Origen",
+            },
+        };
+        opinions.AddRange(
             dashboard.Comments.Select(c =>
-                $"<tr><td>{Html(c.Platform)}</td><td>{Html(c.AuthorName)}</td><td>{Html(c.Text)}</td><td>{Html(c.Sentiment.DisplayName)} ({c.Sentiment.Confidence}%)</td><td>{Html(c.Canton ?? c.Province)}</td><td><a href=\"{Html(c.PostUrl)}\">Ver publicación</a></td><td>{c.PublishedAt:yyyy-MM-dd}</td></tr>"
+                (IReadOnlyList<object?>)
+                    new object?[]
+                    {
+                        NetworkName(c.Platform),
+                        c.AuthorName,
+                        c.Text,
+                        c.PostTitle,
+                        c.Sentiment.DisplayName,
+                        c.Sentiment.Confidence,
+                        c.Province,
+                        c.Canton,
+                        c.Parish,
+                        c.ReactionCount,
+                        string.Join(", ", c.Topics ?? []),
+                        FormatAspects(c),
+                        string.Join(", ", c.Emotions ?? []),
+                        string.Join(", ", c.Entities ?? []),
+                        EcuadorTime(c.PublishedAt, "yyyy-MM-dd HH:mm"),
+                        new XlsxLink(
+                            string.IsNullOrWhiteSpace(c.CommentUrl) ? c.PostUrl : c.CommentUrl,
+                            "Ver publicación"
+                        ),
+                    }
             )
         );
 
-        return string.Concat(
-            "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\"><title>Informe Observatorio Territorial</title>",
-            "<style>body{font-family:Segoe UI,Arial,sans-serif;margin:2rem;color:#1b1b1b}",
-            "h1,h2{color:#0f4c81}table{border-collapse:collapse;width:100%;margin-top:1rem}",
-            "th,td{border:1px solid #d0d0d0;padding:.45rem;font-size:.9rem;vertical-align:top}",
-            "th{background:#eef5fb;text-align:left}.summary{background:#f7fafc;padding:1rem;border-radius:8px}",
-            "@media print{button{display:none}}</style></head><body>",
-            "<button onclick=\"window.print()\">Imprimir / Guardar PDF</button>",
-            "<h1>Observatorio Territorial · Análisis de sentimientos</h1>",
-            $"<p><strong>Tema:</strong> {Html(topic ?? "General")} · <strong>Actualizado:</strong> {dashboard.UpdatedAt:yyyy-MM-dd HH:mm} UTC</p>",
-            $"<div class=\"summary\"><h2>Resumen ejecutivo</h2><p>{Html(summary)}</p>",
-            $"<p>Total {dashboard.Summary.Total} · Positivos {dashboard.Summary.Positive} · Neutrales {dashboard.Summary.Neutral} · Negativos {dashboard.Summary.Negative}</p></div>",
-            "<h2>Opiniones</h2><table><thead><tr><th>Red</th><th>Usuario</th><th>Comentario</th><th>Sentimiento</th><th>Territorio</th><th>Origen</th><th>Fecha</th></tr></thead>",
-            $"<tbody>{rows}</tbody></table>",
-            "<script>window.addEventListener('load',function(){setTimeout(function(){window.print();},400);});</script>",
-            "</body></html>"
+        var insights = dashboard.Insights;
+        var summary = new List<IReadOnlyList<object?>>
+        {
+            new object?[] { "Indicador", "Valor" },
+            new object?[] { "Tema", string.IsNullOrWhiteSpace(topic) ? "General" : topic },
+            new object?[]
+            {
+                "Generado (UTC)",
+                dashboard.UpdatedAt.ToString("yyyy-MM-dd HH:mm", Invariant),
+            },
+            new object?[]
+            {
+                "Fuente de datos",
+                dashboard.DataSource == "live" ? "API (datos reales)" : "Demostrativa",
+            },
+            new object?[] { "Total opiniones", dashboard.Summary.Total },
+            new object?[] { "Positivas", dashboard.Summary.Positive },
+            new object?[] { "Neutrales", dashboard.Summary.Neutral },
+            new object?[] { "Negativas", dashboard.Summary.Negative },
+            new object?[] { "Reacciones totales", insights?.TotalReactions ?? 0 },
+            new object?[] { "Resumen ejecutivo", insights?.ExecutiveSummary ?? "" },
+        };
+
+        var networks = new List<IReadOnlyList<object?>>
+        {
+            new object?[]
+            {
+                "Red",
+                "Total",
+                "Positivos",
+                "Neutrales",
+                "Negativos",
+                "% negativo",
+                "Reacciones",
+            },
+        };
+        networks.AddRange(
+            (insights?.NetworkBreakdown ?? []).Select(n =>
+                (IReadOnlyList<object?>)
+                    new object?[]
+                    {
+                        NetworkName(n.Platform),
+                        n.Total,
+                        n.Positive,
+                        n.Neutral,
+                        n.Negative,
+                        Pct(n.Negative, n.Total),
+                        n.Reactions,
+                    }
+            )
         );
+
+        var aspects = new List<IReadOnlyList<object?>>
+        {
+            new object?[] { "Aspecto", "Menciones", "Positivos", "Neutrales", "Negativos" },
+        };
+        aspects.AddRange(
+            (insights?.AspectBreakdown ?? []).Select(a =>
+                (IReadOnlyList<object?>)
+                    new object?[] { a.Aspect, a.Mentions, a.Positive, a.Neutral, a.Negative }
+            )
+        );
+
+        var territory = new List<IReadOnlyList<object?>>
+        {
+            new object?[]
+            {
+                "Provincia",
+                "Cantón",
+                "Parroquia",
+                "Menciones",
+                "Positivos",
+                "Neutrales",
+                "Negativos",
+            },
+        };
+        territory.AddRange(
+            (insights?.GeoRanking ?? []).Select(g =>
+                (IReadOnlyList<object?>)
+                    new object?[]
+                    {
+                        g.Province,
+                        g.Canton,
+                        g.Parish,
+                        g.Mentions,
+                        g.Positive,
+                        g.Neutral,
+                        g.Negative,
+                    }
+            )
+        );
+
+        var trend = new List<IReadOnlyList<object?>>
+        {
+            new object?[] { "Fecha", "Total", "Positivos", "Neutrales", "Negativos" },
+        };
+        trend.AddRange(
+            (insights?.TemporalTrend ?? []).Select(t =>
+                (IReadOnlyList<object?>)
+                    new object?[]
+                    {
+                        t.Date.ToString("yyyy-MM-dd", Invariant),
+                        t.Total,
+                        t.Positive,
+                        t.Neutral,
+                        t.Negative,
+                    }
+            )
+        );
+
+        return XlsxWorkbookWriter.Build([
+            new XlsxSheet("Resumen", summary, [26, 110]),
+            new XlsxSheet(
+                "Opiniones",
+                opinions,
+                [11, 22, 60, 30, 12, 11, 11, 14, 14, 11, 22, 30, 18, 22, 17, 18]
+            ),
+            new XlsxSheet("Por red", networks, [14, 10, 11, 11, 11, 11, 12]),
+            new XlsxSheet("Aspectos", aspects, [20, 12, 11, 11, 11]),
+            new XlsxSheet("Territorio", territory, [14, 16, 16, 12, 11, 11, 11]),
+            new XlsxSheet("Tendencia", trend, [12, 10, 11, 11, 11]),
+        ]);
     }
+
+    public static byte[] ToPdf(
+        SocialListeningDashboard dashboard,
+        string? topic,
+        DateTimeOffset? fromDate,
+        DateTimeOffset? toDate,
+        string? territory
+    )
+    {
+        var pdf = new PdfDocumentWriter();
+        var insights = dashboard.Insights;
+        var period =
+            fromDate is null && toDate is null
+                ? "todo el periodo disponible"
+                : $"{fromDate?.ToString("dd/MM/yyyy", Invariant) ?? "inicio"} – {toDate?.ToString("dd/MM/yyyy", Invariant) ?? "hoy"}";
+
+        pdf.Title("Informe del Observatorio Territorial · Análisis de sentimientos");
+        pdf.Paragraph(
+            $"Tema: {(string.IsNullOrWhiteSpace(topic) ? "General" : topic)} · Territorio: {territory ?? "Todos"} · Periodo: {period}",
+            9.5
+        );
+        pdf.Paragraph(
+            $"Generado: {EcuadorTime(dashboard.UpdatedAt, "dd/MM/yyyy HH:mm")} (Ecuador) · Fuente: {(dashboard.DataSource == "live" ? "API de redes sociales" : "datos demostrativos")}",
+            9.5,
+            color: (0.35, 0.35, 0.4)
+        );
+
+        pdf.Heading("Resumen ejecutivo");
+        pdf.Paragraph(insights?.ExecutiveSummary ?? "Sin datos.", 10.5);
+
+        var total = dashboard.Summary.Total;
+        pdf.Heading("Sentimiento global");
+        pdf.Paragraph(
+            $"Total {total} opiniones · Positivas {dashboard.Summary.Positive} ({Pct(dashboard.Summary.Positive, total)}%) · Neutrales {dashboard.Summary.Neutral} ({Pct(dashboard.Summary.Neutral, total)}%) · Negativas {dashboard.Summary.Negative} ({Pct(dashboard.Summary.Negative, total)}%) · Reacciones {insights?.TotalReactions ?? 0}",
+            10
+        );
+        pdf.StackedBar(
+            "Global",
+            dashboard.Summary.Positive,
+            dashboard.Summary.Neutral,
+            dashboard.Summary.Negative
+        );
+
+        if (insights?.NetworkBreakdown is { Count: > 0 } networks)
+        {
+            pdf.Heading("Sentimiento por red social");
+            foreach (var network in networks)
+            {
+                pdf.StackedBar(
+                    $"{NetworkName(network.Platform)} ({network.Total})",
+                    network.Positive,
+                    network.Neutral,
+                    network.Negative
+                );
+            }
+        }
+
+        if (insights?.AspectBreakdown is { Count: > 0 } aspects)
+        {
+            pdf.Heading("Análisis por aspecto");
+            foreach (var aspect in aspects)
+            {
+                pdf.StackedBar(
+                    $"{aspect.Aspect} ({aspect.Mentions})",
+                    aspect.Positive,
+                    aspect.Neutral,
+                    aspect.Negative
+                );
+            }
+        }
+
+        if (insights?.GeoRanking is { Count: > 0 } geo)
+        {
+            pdf.Heading("Ranking territorial");
+            foreach (var row in geo)
+            {
+                var label = string.Join(
+                    " / ",
+                    new[]
+                    {
+                        row.Canton ?? row.Province,
+                        row.Parish == row.Canton ? null : row.Parish,
+                    }.Where(x => !string.IsNullOrWhiteSpace(x))
+                );
+                pdf.StackedBar(
+                    $"{label} ({row.Mentions})",
+                    row.Positive,
+                    row.Neutral,
+                    row.Negative
+                );
+            }
+        }
+
+        if (insights?.TemporalTrend is { Count: > 0 } trend)
+        {
+            pdf.Heading("Tendencia temporal");
+            foreach (var point in trend.TakeLast(20))
+            {
+                pdf.StackedBar(
+                    $"{point.Date.ToString("dd/MM/yyyy", Invariant)} ({point.Total})",
+                    point.Positive,
+                    point.Neutral,
+                    point.Negative
+                );
+            }
+        }
+
+        if (insights is not null)
+        {
+            pdf.Heading("Temas, emociones y entidades");
+            if (insights.WordCloud.Count > 0)
+            {
+                pdf.Paragraph(
+                    "Términos frecuentes: "
+                        + string.Join(
+                            ", ",
+                            insights.WordCloud.Take(20).Select(t => $"{t.Term} ({t.Count})")
+                        ),
+                    9.5
+                );
+            }
+
+            if (insights.EmotionBreakdown.Count > 0)
+            {
+                pdf.Paragraph(
+                    "Emociones: "
+                        + string.Join(
+                            ", ",
+                            insights.EmotionBreakdown.Select(e => $"{e.Label} ({e.Count})")
+                        ),
+                    9.5
+                );
+            }
+
+            if (insights.TopEntities.Count > 0)
+            {
+                pdf.Paragraph(
+                    "Entidades: "
+                        + string.Join(
+                            ", ",
+                            insights.TopEntities.Select(e => $"{e.Label} ({e.Count})")
+                        ),
+                    9.5
+                );
+            }
+        }
+
+        pdf.Heading($"Opiniones analizadas ({dashboard.Comments.Count})");
+        foreach (var c in dashboard.Comments.Take(300))
+        {
+            var place = string.Join(
+                " · ",
+                new[] { c.Canton, c.Parish }.Where(x => !string.IsNullOrWhiteSpace(x))
+            );
+            pdf.Paragraph(
+                $"{NetworkName(c.Platform)} · {c.AuthorName} · {c.Sentiment.DisplayName} ({c.Sentiment.Confidence}%) · {EcuadorTime(c.PublishedAt, "dd/MM/yyyy HH:mm")}"
+                    + (string.IsNullOrWhiteSpace(place) ? "" : $" · {place}")
+                    + (c.ReactionCount > 0 ? $" · {c.ReactionCount} reacciones" : ""),
+                8.5,
+                bold: true,
+                spacingAfter: 0
+            );
+            pdf.Paragraph(c.Text, 9, spacingAfter: 0, indent: 8);
+            pdf.Link(
+                "Ver publicación de origen: "
+                    + (string.IsNullOrWhiteSpace(c.CommentUrl) ? c.PostUrl : c.CommentUrl),
+                string.IsNullOrWhiteSpace(c.CommentUrl) ? c.PostUrl : c.CommentUrl,
+                8,
+                indent: 8
+            );
+            pdf.Spacer(4);
+        }
+
+        return pdf.Build();
+    }
+
+    private static readonly System.Globalization.CultureInfo Invariant = System
+        .Globalization
+        .CultureInfo
+        .InvariantCulture;
+
+    private static string EcuadorTime(DateTimeOffset value, string format) =>
+        value.ToOffset(TimeSpan.FromHours(-5)).ToString(format, Invariant);
+
+    private static string FormatAspects(SocialComment comment) =>
+        string.Join(
+            "|",
+            (comment.Aspects ?? []).Select(a =>
+                $"{a.Aspect}:{a.Label switch { "positive" => "positivo", "negative" => "negativo", _ => "neutral" }}"
+            )
+        );
+
+    private static string NetworkName(string platform) =>
+        platform.ToLowerInvariant() switch
+        {
+            "instagram" => "Instagram",
+            "facebook" => "Facebook",
+            "tiktok" => "TikTok",
+            "x" => "X",
+            _ => platform,
+        };
+
+    private static int Pct(int value, int total) =>
+        total == 0 ? 0 : (int)Math.Round(value * 100.0 / total);
 
     private static string Csv(string? value) =>
         $"\"{(value ?? string.Empty).Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
-
-    private static string Cell(string? value) =>
-        $"<Cell><Data ss:Type=\"String\">{System.Security.SecurityElement.Escape(value ?? string.Empty)}</Data></Cell>";
-
-    private static string CellNumber(int value) =>
-        $"<Cell><Data ss:Type=\"Number\">{value}</Data></Cell>";
-
-    private static string Html(string? value) =>
-        System.Net.WebUtility.HtmlEncode(value ?? string.Empty);
 }

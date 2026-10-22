@@ -5,7 +5,8 @@ using AnalisisSentimiento.Domain.Constants;
 namespace AnalisisSentimiento.Application.Monitoring.Queries.GetMonitorAlerts;
 
 [Authorize(Roles = $"{Roles.Administrator},{Roles.Analyst},{Roles.Consulta}")]
-public record GetMonitorAlertsQuery(bool UnreadOnly = false) : IQuery<IReadOnlyList<MonitorAlertDto>>;
+public record GetMonitorAlertsQuery(bool UnreadOnly = false)
+    : IQuery<IReadOnlyList<MonitorAlertDto>>;
 
 internal class GetMonitorAlertsQueryHandler(IApplicationDbContext context)
     : IRequestHandler<GetMonitorAlertsQuery, IReadOnlyList<MonitorAlertDto>>
@@ -22,7 +23,7 @@ internal class GetMonitorAlertsQueryHandler(IApplicationDbContext context)
         }
 
         return await query
-            .OrderByDescending(x => x.Created)
+            .OrderByDescending(x => x.Id)
             .Take(50)
             .Select(x => new MonitorAlertDto(
                 x.Id,

@@ -9,7 +9,9 @@ public class BooleanQueryMatcherTests
     [Test]
     public void Matches_OperadoresYON_EnEspanol()
     {
-        BooleanQueryMatcher.Matches("ULEAM Y Portoviejo", "Orgullo ULEAM en Portoviejo").ShouldBeTrue();
+        BooleanQueryMatcher
+            .Matches("ULEAM Y Portoviejo", "Orgullo ULEAM en Portoviejo")
+            .ShouldBeTrue();
         BooleanQueryMatcher.Matches("ULEAM Y Quito", "Orgullo ULEAM en Portoviejo").ShouldBeFalse();
         BooleanQueryMatcher.Matches("beca O ayuda", "Necesito ayuda estudiantil").ShouldBeTrue();
         BooleanQueryMatcher.Matches("ULEAM NO spam", "ULEAM spam gratis").ShouldBeFalse();
@@ -20,7 +22,11 @@ public class BooleanQueryMatcherTests
     public void Matches_HashtagsYSinonimos()
     {
         BooleanQueryMatcher.Matches("#Manabi", "Viva #Manabi 2026").ShouldBeTrue();
-        BooleanQueryMatcher.Matches("beca~ayuda,beneficio", "Solicité un beneficio universitario").ShouldBeTrue();
-        BooleanQueryMatcher.Matches("uleam|universidad", "La universidad sigue creciendo").ShouldBeTrue();
+        BooleanQueryMatcher
+            .Matches("beca~ayuda,beneficio", "Solicité un beneficio universitario")
+            .ShouldBeTrue();
+        BooleanQueryMatcher
+            .Matches("uleam|universidad", "La universidad sigue creciendo")
+            .ShouldBeTrue();
     }
 }

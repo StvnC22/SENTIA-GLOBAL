@@ -15,6 +15,10 @@ namespace AnalisisSentimiento.Web.Serialization;
 [JsonSerializable(typeof(TemporalTrendPoint))]
 [JsonSerializable(typeof(GeoMentionRank))]
 [JsonSerializable(typeof(WordCloudTerm))]
+[JsonSerializable(typeof(NetworkSentiment))]
+[JsonSerializable(typeof(AspectSummary))]
+[JsonSerializable(typeof(AspectSentiment))]
+[JsonSerializable(typeof(LabelCount))]
 [JsonSerializable(typeof(AnalisisSentimiento.Web.Endpoints.TerritoryCatalogResponse))]
 [JsonSerializable(typeof(AnalisisSentimiento.Web.Endpoints.TerritoryCantonDto))]
 internal partial class AppJsonSerializerContext : JsonSerializerContext;

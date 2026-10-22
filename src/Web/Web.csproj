@@ -16,6 +16,7 @@
     <DebugSymbols>false</DebugSymbols>
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
     <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <PublishDir>$(MSBuildThisFileDirectory)..\..\dist\SentiaGlobal\</PublishDir>
   </PropertyGroup>
 
   <ItemGroup>

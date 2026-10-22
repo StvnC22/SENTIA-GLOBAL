@@ -29,6 +29,7 @@ const state = {
   territory: null,
   savedSearches: [],
   monitors: [],
+  users: [],
   alerts: [],
   activityLog: [],
   lastNegativeRatio: null,
@@ -448,6 +449,8 @@ function renderActiveView() {
     renderHistoryTable();
   } else if (state.activeNav === "monitors") {
     refreshMonitorsPanel();
+  } else if (state.activeNav === "users") {
+    refreshUsersPanel();
   }
 }
 
@@ -509,13 +512,7 @@ function renderDashboard() {
     if (counts[platform] !== undefined) counts[platform]++;
   });
 
-  const maxCount = Math.max(...Object.values(counts), 1);
-  for (const [net, count] of Object.entries(counts)) {
-    const countEl = document.getElementById(`dashCount${net.charAt(0).toUpperCase() + net.slice(1)}`);
-    const barEl = document.getElementById(`dashBar${net.charAt(0).toUpperCase() + net.slice(1)}`);
-    if (countEl) countEl.textContent = count;
-    if (barEl) barEl.style.width = `${Math.round((count / maxCount) * 100)}%`;
-  }
+  renderNetworkSentiment();
 
   // Top Network
   const topNetEntry = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
@@ -536,21 +533,179 @@ function renderDashboard() {
     }
   }
 
-  renderSemanticCloud("dashSemanticCloud", "dashCloudMeta");
+  if (state.insights?.wordCloud?.length) {
+    renderServerWordCloud("dashSemanticCloud", "dashCloudMeta", state.insights.wordCloud);
+  } else {
+    renderSemanticCloud("dashSemanticCloud", "dashCloudMeta");
+  }
   renderTrendChart();
   renderGeoRanking();
+  renderAspectBreakdown();
+  renderLabelCounts(
+    "dashEmotionBreakdown",
+    "dashEmotionMeta",
+    state.insights?.emotionBreakdown?.length ? state.insights.emotionBreakdown : countLabels(state.comments.flatMap(c => c.emotions || []), 8),
+    "Sin emociones detectadas."
+  );
+  renderLabelCounts(
+    "dashEntityBreakdown",
+    "dashEntityMeta",
+    state.insights?.topEntities?.length ? state.insights.topEntities : countLabels(state.comments.flatMap(c => c.entities || []), 10),
+    "Sin entidades detectadas."
+  );
   renderExecutiveSummary();
   renderSavedSearches();
+  renderDashboardResults();
+}
+
+function renderServerWordCloud(containerId, metaId, terms) {
+  const container = document.getElementById(containerId);
+  const meta = document.getElementById(metaId);
+  if (!container) return;
+  const words = terms.slice(0, 28);
+  const max = Math.max(1, ...words.map(w => w.count));
+  container.innerHTML = words.map((word, index) => {
+    const size = 0.82 + (word.count / max) * 1.05;
+    return `<span class="cloud-word cloud-tone-${index % 5}" style="font-size:${size.toFixed(2)}rem" title="${word.count} apariciones">${escapeHtml(word.term)}<sup>${word.count}</sup></span>`;
+  }).join("");
+  if (meta) meta.textContent = `${words.length} términos`;
 }
 
 function renderExecutiveSummary() {
   const el = document.getElementById("observatorioExecutiveSummary");
   if (!el) return;
-  const text = state.insights?.executiveSummary
-    || (state.comments.length
-      ? `Se analizaron ${state.comments.length} opiniones en la sesión actual.`
-      : "Ejecute una búsqueda para generar el resumen ejecutivo automático.");
-  el.textContent = text;
+  el.textContent = state.insights?.executiveSummary || buildLocalExecutiveSummary(state.comments);
+}
+
+function buildLocalExecutiveSummary(comments) {
+  if (!comments.length) return "Ejecute una búsqueda para generar el resumen ejecutivo automático.";
+  const total = comments.length;
+  const count = label => comments.filter(c => c.sentiment?.label === label).length;
+  const networks = buildNetworkBreakdown(comments)
+    .map(n => `${platformLabel(n.platform)} ${n.total} (${percent(n.negative, n.total)}% negativo)`)
+    .join(", ");
+  const aspects = buildAspectBreakdown(comments).slice(0, 3).map(a => `${a.aspect} (${a.mentions})`).join(", ");
+  return `Resumen ejecutivo: se analizaron ${total} opiniones. Frecuencia por red: ${networks}. `
+    + `Sentimiento: ${percent(count("positive"), total)}% positivo, ${percent(count("neutral"), total)}% neutro y ${percent(count("negative"), total)}% negativo.`
+    + (aspects ? ` Aspectos más comentados: ${aspects}.` : "");
+}
+
+function buildNetworkBreakdown(comments) {
+  const map = new Map();
+  for (const comment of comments) {
+    const platform = normalizePlatform(comment.platform);
+    const row = map.get(platform) || { platform, total: 0, positive: 0, neutral: 0, negative: 0, reactions: 0 };
+    row.total += 1;
+    row[comment.sentiment?.label || "neutral"] += 1;
+    row.reactions += Number(comment.reactionCount || 0);
+    map.set(platform, row);
+  }
+  return [...map.values()].sort((a, b) => b.total - a.total);
+}
+
+function buildAspectBreakdown(comments) {
+  const map = new Map();
+  for (const comment of comments) {
+    for (const aspect of comment.aspects || []) {
+      const row = map.get(aspect.aspect) || { aspect: aspect.aspect, mentions: 0, positive: 0, neutral: 0, negative: 0 };
+      row.mentions += 1;
+      row[aspect.label] = (row[aspect.label] || 0) + 1;
+      map.set(aspect.aspect, row);
+    }
+  }
+  return [...map.values()].sort((a, b) => b.mentions - a.mentions);
+}
+
+function countLabels(values, take) {
+  const map = new Map();
+  for (const value of values) map.set(value, (map.get(value) || 0) + 1);
+  return [...map.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, take);
+}
+
+function sentimentStackHtml(row) {
+  const total = Math.max(1, row.positive + row.neutral + row.negative);
+  return `<div class="sentiment-stack">
+    <span class="positive" style="width:${(row.positive / total) * 100}%"></span>
+    <span class="neutral" style="width:${(row.neutral / total) * 100}%"></span>
+    <span class="negative" style="width:${(row.negative / total) * 100}%"></span>
+  </div>`;
+}
+
+function renderNetworkSentiment() {
+  const container = document.getElementById("networkDistributionBars");
+  if (!container) return;
+  const rows = state.insights?.networkBreakdown?.length ? state.insights.networkBreakdown : buildNetworkBreakdown(state.comments);
+  const byPlatform = new Map(rows.map(r => [normalizePlatform(r.platform), r]));
+  const max = Math.max(1, ...rows.map(r => r.total));
+  container.innerHTML = ["instagram", "facebook", "tiktok", "x"].map(platform => {
+    const row = byPlatform.get(platform) || { platform, total: 0, positive: 0, neutral: 0, negative: 0, reactions: 0 };
+    return `<div class="net-bar-item">
+      <div class="net-bar-info">
+        <span class="net-bar-label ${platform}">${escapeHtml(platformLabel(platform))}</span>
+        <strong class="net-bar-val">${row.total}</strong>
+      </div>
+      <div class="net-bar-track"><div class="net-bar-fill ${platform}" style="width:${Math.round((row.total / max) * 100)}%"></div></div>
+      ${row.total ? sentimentStackHtml(row) : ""}
+      <small class="net-bar-detail">${row.total
+        ? `${percent(row.positive, row.total)}% pos · ${percent(row.neutral, row.total)}% neu · ${percent(row.negative, row.total)}% neg · ${row.reactions || 0} reacciones`
+        : "Sin opiniones"}</small>
+    </div>`;
+  }).join("");
+}
+
+function renderAspectBreakdown() {
+  const container = document.getElementById("dashAspectBreakdown");
+  const meta = document.getElementById("dashAspectMeta");
+  if (!container) return;
+  const rows = state.insights?.aspectBreakdown?.length ? state.insights.aspectBreakdown : buildAspectBreakdown(state.comments);
+  if (meta) meta.textContent = `${rows.length} aspectos`;
+  if (!rows.length) {
+    container.innerHTML = '<span class="insight-empty">Sin aspectos identificados.</span>';
+    return;
+  }
+  container.innerHTML = rows.map(row => `<div class="geo-rank-row">
+      <div class="geo-rank-label"><strong>${escapeHtml(row.aspect)}</strong><span>${row.mentions} menciones</span></div>
+      ${sentimentStackHtml(row)}
+      <div class="geo-rank-sentiments">
+        <span class="sentiment positive">${row.positive}</span>
+        <span class="sentiment neutral">${row.neutral}</span>
+        <span class="sentiment negative">${row.negative}</span>
+      </div>
+    </div>`).join("");
+}
+
+function renderLabelCounts(containerId, metaId, rows, emptyText) {
+  const container = document.getElementById(containerId);
+  const meta = document.getElementById(metaId);
+  if (!container) return;
+  if (meta) meta.textContent = `${rows.length}`;
+  if (!rows.length) {
+    container.innerHTML = `<span class="insight-empty">${escapeHtml(emptyText)}</span>`;
+    return;
+  }
+  const max = Math.max(1, ...rows.map(r => r.count));
+  container.innerHTML = rows.map(row => `<div class="label-count-row">
+      <span>${escapeHtml(row.label)}</span>
+      <div class="geo-rank-track"><div class="geo-rank-fill" style="width:${Math.round((row.count / max) * 100)}%"></div></div>
+      <strong>${row.count}</strong>
+    </div>`).join("");
+}
+
+function renderDashboardResults() {
+  const body = document.getElementById("dashResultsBody");
+  const meta = document.getElementById("dashResultsMeta");
+  if (!body) return;
+  const term = (document.getElementById("dashResultsSearch")?.value || "").trim().toLocaleLowerCase("es");
+  const sentiment = document.getElementById("dashResultsSentiment")?.value || "all";
+  const rows = state.comments
+    .filter(c => sentiment === "all" || c.sentiment?.label === sentiment)
+    .filter(c => !term || `${c.authorName} ${c.authorHandle} ${c.text} ${c.postTitle} ${c.canton || ""} ${c.parish || ""}`.toLocaleLowerCase("es").includes(term))
+    .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  const visible = rows.slice(0, 100);
+  body.innerHTML = visible.length
+    ? visible.map(comment => renderCommentRow(comment, true)).join("")
+    : '<tr><td colspan="6"><span class="insight-empty">No hay opiniones para mostrar. Ejecute una búsqueda.</span></td></tr>';
+  if (meta) meta.textContent = rows.length > visible.length ? `${visible.length} de ${rows.length}` : `${rows.length}`;
 }
 
 function renderTrendChart() {
@@ -571,10 +726,10 @@ function renderTrendChart() {
   const max = Math.max(...points.map(p => p.total), 1);
   container.innerHTML = points.map(point => {
     const dateLabel = new Date(point.date).toLocaleDateString("es-EC", { day: "2-digit", month: "short" });
-    const height = Math.max(8, Math.round((point.total / max) * 100));
+    const height = Math.max(8, Math.round((point.total / max) * 120));
     const negShare = point.total ? Math.round((point.negative / point.total) * 100) : 0;
     return `<div class="trend-bar" title="${escapeHtml(dateLabel)}: ${point.total} (${point.positive}+ / ${point.neutral}= / ${point.negative}-)">
-      <div class="trend-stack" style="height:${height}%">
+      <div class="trend-stack" style="height:${height}px">
         <span class="trend-seg positive" style="flex:${point.positive || 0.01}"></span>
         <span class="trend-seg neutral" style="flex:${point.neutral || 0.01}"></span>
         <span class="trend-seg negative" style="flex:${point.negative || 0.01}"></span>
@@ -750,9 +905,14 @@ function renderGlobalView() {
 function renderCommentRow(comment, showNetworkBadge = true) {
   const date = new Date(comment.publishedAt);
   const netBadge = showNetworkBadge ? `<td data-label="Red"><span class="history-net-pill ${escapeHtml(comment.platform)}">${escapeHtml(comment.platform)}</span></td>` : "";
-  const place = [comment.canton, comment.parish].filter(Boolean).join(" · ") || comment.province || "";
+  const place = [...new Set([comment.canton, comment.parish].filter(Boolean))].join(" · ") || comment.province || "";
   const placeHtml = place ? `<div class="comment-place">${escapeHtml(place)}</div>` : "";
-  const topics = (comment.topics || []).slice(0, 2).map(t => `<em class="topic-chip">${escapeHtml(t)}</em>`).join("");
+  const aspectLabels = { positive: "+", neutral: "=", negative: "−" };
+  const aspectChips = (comment.aspects || []).slice(0, 3)
+    .map(a => `<em class="topic-chip aspect-${escapeHtml(a.label)}" title="Aspecto ${escapeHtml(a.aspect)}">${escapeHtml(a.aspect)} ${aspectLabels[a.label] || ""}</em>`);
+  const emotionChips = (comment.emotions || []).slice(0, 2).map(e => `<em class="topic-chip emotion-chip">${escapeHtml(e)}</em>`);
+  const reactions = Number(comment.reactionCount || 0) > 0 ? `<em class="topic-chip reaction-chip" title="Reacciones">♥ ${comment.reactionCount}</em>` : "";
+  const topics = [...aspectChips, ...emotionChips, reactions].join("");
   return `<tr>
     ${netBadge}
     <td data-label="Usuario"><a class="user-link" href="${escapeHtml(comment.authorUrl)}" target="_blank" rel="noopener noreferrer"><span class="user-avatar">${escapeHtml(initials(comment.authorName))}</span><span class="user-info"><strong>${escapeHtml(comment.authorName)}</strong><span>${escapeHtml(comment.authorHandle)}</span></span></a></td>
@@ -1363,11 +1523,9 @@ function buildObservatorioQueryParams(extra = {}) {
 }
 
 async function fetchPlatformComments(item, { force, signal, prompt }) {
-  const query = buildObservatorioQueryParams({
-    platform: item.platform,
-    [`${item.platform}Url`]: item.url,
-    prompt: prompt || state.prompt || undefined
-  });
+  const query = new URLSearchParams({ platform: item.platform, [`${item.platform}Url`]: item.url });
+  const effectivePrompt = prompt || state.prompt;
+  if (effectivePrompt) query.set("prompt", effectivePrompt);
   if (force || isDirectPostUrl(item.platform, item.url)) {
     query.set("refresh", "true");
   }
@@ -1430,17 +1588,17 @@ async function exportObservatorio(format) {
   }
   const blob = await response.blob();
   const blobUrl = URL.createObjectURL(blob);
-  if (format === "pdf") {
-    window.open(blobUrl, "_blank", "noopener");
-    showToast("Informe PDF abierto · use Imprimir / Guardar PDF");
-    return;
-  }
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+  const extension = { excel: "xlsx", pdf: "pdf", csv: "csv" }[format] || format;
   const link = document.createElement("a");
   link.href = blobUrl;
-  link.download = `sentia-observatorio.${format === "excel" ? "xls" : "csv"}`;
+  link.download = match ? decodeURIComponent(match[1]) : `sentia-observatorio.${extension}`;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(blobUrl);
-  showToast(`Exportación ${format.toUpperCase()} lista`);
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+  showToast(`Reporte ${format === "excel" ? "Excel" : format.toUpperCase()} descargado`);
 }
 
 async function loadTerritoryCatalog() {
@@ -1516,7 +1674,9 @@ function renderMonitorsPanel() {
 
   if (body) {
     body.innerHTML = (state.monitors || []).map(item => {
-      const last = item.lastRunAt ? new Date(item.lastRunAt).toLocaleString("es-EC") : "Nunca";
+      const last = item.lastRunAt
+        ? `${new Date(item.lastRunAt).toLocaleString("es-EC")} · ${item.lastTotal ?? 0} op. · ${Math.round((item.lastNegativeRatio || 0) * 100)}% neg`
+        : "Nunca";
       const next = item.nextRunAt ? new Date(item.nextRunAt).toLocaleString("es-EC") : "—";
       const status = item.isActive ? "Activo" : "Pausado";
       const canEdit = hasMinRole("Analyst");
@@ -1527,11 +1687,15 @@ function renderMonitorsPanel() {
         <td><small>${escapeHtml(last)}</small><br><small>${escapeHtml(next)}</small></td>
         <td><span class="status-tag ${item.isActive ? "live" : "demo"}">${status}</span></td>
         <td>${canEdit ? `
+          <button class="action-icon-btn" data-run-monitor="${item.id}" title="Ejecutar ahora">▶</button>
           <button class="action-icon-btn" data-toggle-monitor="${item.id}" title="${item.isActive ? "Pausar" : "Activar"}">⏯</button>
           <button class="action-icon-btn danger" data-delete-monitor="${item.id}" title="Eliminar">🗑</button>
         ` : "—"}</td>
       </tr>`;
     }).join("");
+    body.querySelectorAll("[data-run-monitor]").forEach(btn => {
+      btn.addEventListener("click", () => runMonitorNow(Number(btn.dataset.runMonitor), btn));
+    });
     body.querySelectorAll("[data-toggle-monitor]").forEach(btn => {
       btn.addEventListener("click", () => toggleMonitor(Number(btn.dataset.toggleMonitor)));
     });
@@ -1568,12 +1732,150 @@ function renderMonitorsPanel() {
     } else {
       activityList.innerHTML = state.activityLog.map(item => `
         <div class="activity-row">
-          <strong>${escapeHtml(item.action)}</strong>
+          <strong>${escapeHtml(ACTIVITY_LABELS[item.action] || item.action)}</strong>
           <span>${escapeHtml(item.detail || "")}</span>
           <small>${escapeHtml(item.userName || "sistema")} · ${escapeHtml(new Date(item.occurredAt).toLocaleString("es-EC"))}</small>
         </div>`).join("");
     }
   }
+}
+
+const ACTIVITY_LABELS = {
+  "auth.login": "Inicio de sesión",
+  "auth.logout": "Cierre de sesión",
+  "auth.failed": "Intento de acceso fallido",
+  "auth.locked": "Cuenta bloqueada",
+  "monitor.created": "Monitoreo creado",
+  "monitor.updated": "Monitoreo actualizado",
+  "monitor.deleted": "Monitoreo eliminado",
+  "monitor.executed": "Monitoreo ejecutado",
+  "monitor.failed": "Monitoreo con error",
+  "report.exported": "Reporte exportado",
+  "user.created": "Usuario creado",
+  "user.role_changed": "Rol modificado",
+  "user.unlocked": "Usuario desbloqueado",
+  "user.deleted": "Usuario eliminado",
+  "credentials.updated": "Credenciales actualizadas"
+};
+
+async function runMonitorNow(id, button) {
+  if (button) button.disabled = true;
+  showToast("Ejecutando monitoreo…");
+  try {
+    const response = await apiFetch(`/api/monitors/${id}/run`, { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const monitor = await response.json();
+    showToast(`Monitoreo ejecutado · ${monitor.lastTotal ?? 0} opiniones`);
+  } catch (error) {
+    showToast("No se pudo ejecutar el monitoreo");
+  } finally {
+    if (button) button.disabled = false;
+    await refreshMonitorsPanel();
+  }
+}
+
+async function refreshUsersPanel() {
+  if (!hasMinRole("Administrator")) return;
+  try {
+    const response = await apiFetch("/api/Users/admin/users");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    state.users = await response.json();
+    renderUsersPanel();
+  } catch (e) {
+    showToast("No se pudo cargar la lista de usuarios");
+  }
+}
+
+function renderUsersPanel() {
+  const body = document.getElementById("usersTableBody");
+  const meta = document.getElementById("usersCountMeta");
+  if (!body) return;
+  if (meta) meta.textContent = `${state.users.length}`;
+  const currentId = state.auth.profile?.id;
+  const roleOptions = [["Administrator", "Administrador"], ["Analyst", "Analista"], ["Consulta", "Consulta"]];
+  body.innerHTML = state.users.map(user => {
+    const role = user.roles?.[0] || "";
+    const isSelf = user.id === currentId;
+    return `<tr>
+      <td><strong>${escapeHtml(user.userName)}</strong>${isSelf ? ' <small>(usted)</small>' : ""}</td>
+      <td><select class="modern-select" data-user-role="${escapeHtml(user.id)}" ${isSelf ? "disabled" : ""}>
+        ${roleOptions.map(([value, label]) => `<option value="${value}" ${value === role ? "selected" : ""}>${label}</option>`).join("")}
+      </select></td>
+      <td>${user.isLockedOut
+        ? '<span class="status-tag demo">Bloqueado</span>'
+        : `<span class="status-tag live">Activo</span>${user.accessFailedCount ? ` <small>${user.accessFailedCount} intentos fallidos</small>` : ""}`}</td>
+      <td>
+        ${user.isLockedOut ? `<button class="action-icon-btn" data-unlock-user="${escapeHtml(user.id)}" title="Desbloquear">🔓</button>` : ""}
+        ${isSelf ? "—" : `<button class="action-icon-btn danger" data-delete-user="${escapeHtml(user.id)}" title="Eliminar">🗑</button>`}
+      </td>
+    </tr>`;
+  }).join("");
+
+  body.querySelectorAll("[data-user-role]").forEach(select => {
+    select.addEventListener("change", () => changeUserRole(select.dataset.userRole, select.value));
+  });
+  body.querySelectorAll("[data-unlock-user]").forEach(btn => {
+    btn.addEventListener("click", () => unlockUser(btn.dataset.unlockUser));
+  });
+  body.querySelectorAll("[data-delete-user]").forEach(btn => {
+    btn.addEventListener("click", () => deleteUser(btn.dataset.deleteUser));
+  });
+}
+
+async function describeProblem(response, fallback) {
+  try {
+    const problem = await response.json();
+    const details = problem.errors ? Object.values(problem.errors).flat().join(" ") : "";
+    return details || problem.detail || problem.title || fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+async function createUser() {
+  const errorEl = document.getElementById("createUserError");
+  const email = document.getElementById("newUserEmail");
+  const password = document.getElementById("newUserPassword");
+  const role = document.getElementById("newUserRole");
+  if (errorEl) errorEl.hidden = true;
+  const response = await apiFetch("/api/Users/admin/users", {
+    method: "POST",
+    body: JSON.stringify({ email: email?.value?.trim(), password: password?.value || "", role: role?.value || "Consulta" })
+  });
+  if (!response.ok) {
+    const message = await describeProblem(response, "No se pudo crear el usuario");
+    if (errorEl) {
+      errorEl.hidden = false;
+      errorEl.textContent = message;
+    }
+    return;
+  }
+  if (email) email.value = "";
+  if (password) password.value = "";
+  showToast("Usuario creado");
+  await refreshUsersPanel();
+}
+
+async function changeUserRole(id, role) {
+  const response = await apiFetch(`/api/Users/admin/users/${encodeURIComponent(id)}/role`, {
+    method: "PUT",
+    body: JSON.stringify({ role })
+  });
+  showToast(response.ok ? "Rol actualizado" : await describeProblem(response, "No se pudo cambiar el rol"));
+  await refreshUsersPanel();
+}
+
+async function unlockUser(id) {
+  const response = await apiFetch(`/api/Users/admin/users/${encodeURIComponent(id)}/unlock`, { method: "POST" });
+  showToast(response.ok ? "Usuario desbloqueado" : "No se pudo desbloquear");
+  await refreshUsersPanel();
+}
+
+async function deleteUser(id) {
+  if (!confirm("¿Eliminar este usuario?")) return;
+  const response = await apiFetch(`/api/Users/admin/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+  showToast(response.ok ? "Usuario eliminado" : await describeProblem(response, "No se pudo eliminar"));
+  await refreshUsersPanel();
 }
 
 async function toggleMonitor(id) {
@@ -1880,7 +2182,7 @@ async function executeJobAsync(job) {
 
         state.comments = deduplicateComments(mergedComments);
         state.summary = dashboard.summary || null;
-        state.insights = dashboard.insights || state.insights;
+        state.insights = null;
         state.dataSource = anyLive ? "live" : (dashboard.dataSource || "demo");
         evaluateSentimentAlert(dashboard.summary);
 
@@ -2271,6 +2573,29 @@ function initEventHandlers() {
   const refreshMonitorsBtn = document.getElementById("refreshMonitorsBtn");
   if (refreshMonitorsBtn) refreshMonitorsBtn.addEventListener("click", () => refreshMonitorsPanel());
 
+  const refreshUsersBtn = document.getElementById("refreshUsersBtn");
+  if (refreshUsersBtn) refreshUsersBtn.addEventListener("click", () => refreshUsersPanel());
+  const createUserForm = document.getElementById("createUserForm");
+  if (createUserForm) {
+    createUserForm.addEventListener("submit", event => {
+      event.preventDefault();
+      createUser();
+    });
+  }
+
+  document.getElementById("dashResultsSearch")?.addEventListener("input", renderDashboardResults);
+  document.getElementById("dashResultsSentiment")?.addEventListener("change", renderDashboardResults);
+
+  document.querySelectorAll(".demo-account").forEach(button => {
+    button.addEventListener("click", () => {
+      const email = document.getElementById("loginEmail");
+      const password = document.getElementById("loginPassword");
+      if (email) email.value = button.dataset.email || "";
+      if (password) password.value = button.dataset.password || "";
+      loginForm?.requestSubmit();
+    });
+  });
+
   const loginForm = document.getElementById("loginForm");
   if (loginForm) {
     loginForm.addEventListener("submit", async event => {
@@ -2315,7 +2640,7 @@ function initEventHandlers() {
   }
 
   // CSV Export Buttons
-  document.querySelectorAll(".export-button").forEach(btn => {
+  document.querySelectorAll(".export-button:not([data-export])").forEach(btn => {
     btn.addEventListener("click", () => {
       const platform = btn.dataset.platform || (state.activeNav === "global" ? "global" : state.activeNav);
       const comments = filterComments(platform, state.sentiment, state.query, state.sort);

@@ -1,9 +1,13 @@
-﻿using AnalisisSentimiento.Domain.Constants;
+﻿using System.Security.Cryptography;
+using System.Text;
+using AnalisisSentimiento.Domain.Constants;
 using AnalisisSentimiento.Domain.Entities;
 using AnalisisSentimiento.Domain.ValueObjects;
 using AnalisisSentimiento.Infrastructure.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -27,13 +31,22 @@ public class ApplicationDbContextInitialiser(
     ILogger<ApplicationDbContextInitialiser> logger,
     ApplicationDbContext context,
     UserManager<ApplicationUser> userManager,
-    RoleManager<IdentityRole> roleManager
+    RoleManager<IdentityRole> roleManager,
+    IConfiguration configuration
 )
 {
+    public const string PreserveDataKey = "Database:PreserveData";
+
     public async Task InitialiseAsync()
     {
         try
         {
+            if (configuration.GetValue<bool>(PreserveDataKey))
+            {
+                await EnsureSchemaPreservingDataAsync();
+                return;
+            }
+
             // See https://jasontaylor.dev/ef-core-database-initialisation-strategies
             await context.Database.EnsureDeletedAsync();
             await context.Database.EnsureCreatedAsync();
@@ -42,6 +55,36 @@ public class ApplicationDbContextInitialiser(
         {
             logger.LogError(ex, "An error occurred while initialising the database.");
             throw;
+        }
+    }
+
+    private async Task EnsureSchemaPreservingDataAsync()
+    {
+        var schemaHash = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(context.Database.GenerateCreateScript()))
+        );
+        var dataSource = context.Database.GetDbConnection().DataSource;
+        var markerPath = string.IsNullOrWhiteSpace(dataSource) ? null : $"{dataSource}.schema";
+
+        if (
+            markerPath is not null
+            && File.Exists(dataSource)
+            && File.Exists(markerPath)
+            && await File.ReadAllTextAsync(markerPath) == schemaHash
+        )
+        {
+            await context.Database.EnsureCreatedAsync();
+            return;
+        }
+
+        logger.LogInformation(
+            "Esquema de base de datos nuevo o modificado; se recrea la base local."
+        );
+        await context.Database.EnsureDeletedAsync();
+        await context.Database.EnsureCreatedAsync();
+        if (markerPath is not null)
+        {
+            await File.WriteAllTextAsync(markerPath, schemaHash);
         }
     }
 

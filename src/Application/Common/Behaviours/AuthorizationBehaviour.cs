@@ -43,7 +43,8 @@ public class AuthorizationBehaviour<TRequest, TResponse>(
                         var isInRole =
                             user.Roles?.Any(x =>
                                 string.Equals(role, x, StringComparison.OrdinalIgnoreCase)
-                            ) ?? false;
+                            )
+                            ?? false;
                         if (isInRole)
                         {
                             authorized = true;

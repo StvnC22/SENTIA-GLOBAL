@@ -1,6 +1,7 @@
 using AnalisisSentimiento.Application.Monitoring.Commands.CreateScheduledMonitor;
 using AnalisisSentimiento.Application.Monitoring.Commands.DeleteScheduledMonitor;
 using AnalisisSentimiento.Application.Monitoring.Commands.MarkMonitorAlertRead;
+using AnalisisSentimiento.Application.Monitoring.Commands.RunScheduledMonitorNow;
 using AnalisisSentimiento.Application.Monitoring.Commands.UpdateScheduledMonitor;
 using AnalisisSentimiento.Application.Monitoring.Queries.GetActivityLog;
 using AnalisisSentimiento.Application.Monitoring.Queries.GetMonitorAlerts;
@@ -21,6 +22,7 @@ public class Monitors : IEndpointGroup
         groupBuilder.MapPost(CreateMonitor);
         groupBuilder.MapPut(UpdateMonitor, "{id:int}");
         groupBuilder.MapDelete(DeleteMonitor, "{id:int}");
+        groupBuilder.MapPost(RunMonitorNow, "{id:int}/run");
         groupBuilder.MapGet(GetAlerts, "alerts");
         groupBuilder.MapPost(MarkAlertRead, "alerts/{id:int}/read");
         groupBuilder.MapGet(GetActivity, "activity");
@@ -32,10 +34,9 @@ public class Monitors : IEndpointGroup
         return TypedResults.Ok(items);
     }
 
-    public static async Task<Results<Created<ScheduledMonitorDto>, ProblemHttpResult>> CreateMonitor(
-        ISender sender,
-        CreateScheduledMonitorCommand command
-    )
+    public static async Task<
+        Results<Created<ScheduledMonitorDto>, ProblemHttpResult>
+    > CreateMonitor(ISender sender, CreateScheduledMonitorCommand command)
     {
         var result = await sender.Send(command);
         return result.IsSuccess
@@ -43,11 +44,9 @@ public class Monitors : IEndpointGroup
             : result.ToProblemHttpResult();
     }
 
-    public static async Task<Results<Ok<ScheduledMonitorDto>, BadRequest, ProblemHttpResult>> UpdateMonitor(
-        ISender sender,
-        int id,
-        UpdateScheduledMonitorCommand command
-    )
+    public static async Task<
+        Results<Ok<ScheduledMonitorDto>, BadRequest, ProblemHttpResult>
+    > UpdateMonitor(ISender sender, int id, UpdateScheduledMonitorCommand command)
     {
         if (id != command.Id)
         {
@@ -65,6 +64,15 @@ public class Monitors : IEndpointGroup
     {
         var result = await sender.Send(new DeleteScheduledMonitorCommand(id));
         return result.IsSuccess ? TypedResults.NoContent() : result.ToProblemHttpResult();
+    }
+
+    public static async Task<Results<Ok<ScheduledMonitorDto>, ProblemHttpResult>> RunMonitorNow(
+        ISender sender,
+        int id
+    )
+    {
+        var result = await sender.Send(new RunScheduledMonitorNowCommand(id));
+        return result.IsSuccess ? TypedResults.Ok(result.Value) : result.ToProblemHttpResult();
     }
 
     public static async Task<Ok<IReadOnlyList<MonitorAlertDto>>> GetAlerts(

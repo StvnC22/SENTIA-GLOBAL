@@ -95,6 +95,43 @@ public class ScheduledMonitor : BaseAuditableEntity
         NextRunAt = runAt.AddMinutes(IntervalMinutes);
     }
 
+    public const double SignificantChangeThreshold = 0.15;
+    public const double AlertNegativeRatioFloor = 0.35;
+
+    public MonitorAlert? RecordRun(
+        DateTimeOffset runAt,
+        int total,
+        int positive,
+        int neutral,
+        int negative,
+        string? executiveSummary
+    )
+    {
+        var previousRatio = LastNegativeRatio;
+        MarkRun(runAt, total, positive, neutral, negative, executiveSummary);
+        var currentRatio = LastNegativeRatio ?? 0;
+
+        if (previousRatio is null || total == 0)
+        {
+            return null;
+        }
+
+        var delta = currentRatio - previousRatio.Value;
+        if (
+            Math.Abs(delta) < SignificantChangeThreshold
+            || Math.Max(currentRatio, previousRatio.Value) < AlertNegativeRatioFloor
+        )
+        {
+            return null;
+        }
+
+        var direction = delta > 0 ? "subió" : "bajó";
+        var message =
+            $"El sentimiento negativo de «{Name}» {direction} a {currentRatio:P0} "
+            + $"(antes {previousRatio.Value:P0}) para el tema «{Topic}».";
+        return MonitorAlert.Create(Id, Name, message, previousRatio.Value, currentRatio);
+    }
+
     public void Deactivate()
     {
         IsActive = false;

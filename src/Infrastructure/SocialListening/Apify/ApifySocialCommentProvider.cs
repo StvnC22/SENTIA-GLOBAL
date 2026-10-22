@@ -143,10 +143,7 @@ public sealed class ApifySocialCommentProvider(
                 errors.Add(
                     $"La consulta de {targetPlatform} superó el tiempo límite. Intenta de nuevo solo esa red."
                 );
-                logger.LogWarning(
-                    "Timeout al obtener comentarios de {Platform}",
-                    targetPlatform
-                );
+                logger.LogWarning("Timeout al obtener comentarios de {Platform}", targetPlatform);
             }
             catch (Exception exception)
             {
@@ -228,14 +225,18 @@ public sealed class ApifySocialCommentProvider(
         }
 
         var requested = Platforms
-            .Where(name => !string.IsNullOrWhiteSpace(ResolveProfileUrl(name, sourceUrls, settings)))
+            .Where(name =>
+                !string.IsNullOrWhiteSpace(ResolveProfileUrl(name, sourceUrls, settings))
+            )
             .ToList();
 
         // Si el panel no envió URLs, caer a los perfiles configurados.
         return requested.Count > 0
             ? requested
             : Platforms
-                .Where(name => !string.IsNullOrWhiteSpace(settings.Profiles.GetValueOrDefault(name)))
+                .Where(name =>
+                    !string.IsNullOrWhiteSpace(settings.Profiles.GetValueOrDefault(name))
+                )
                 .ToList();
     }
 
@@ -274,8 +275,7 @@ public sealed class ApifySocialCommentProvider(
             || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
         )
         {
-            error =
-                $"URL de {platformName} incorrecta: usa un enlace completo (https://…).";
+            error = $"URL de {platformName} incorrecta: usa un enlace completo (https://…).";
             return false;
         }
 
@@ -302,8 +302,7 @@ public sealed class ApifySocialCommentProvider(
                     "URL de Facebook incorrecta. Ejemplo: https://www.facebook.com/pagina",
                 "tiktok" =>
                     "URL de TikTok incorrecta. Ejemplo: https://www.tiktok.com/@cuenta o .../video/123",
-                "x" =>
-                    "URL de X incorrecta. Ejemplo: https://x.com/cuenta o .../status/123",
+                "x" => "URL de X incorrecta. Ejemplo: https://x.com/cuenta o .../status/123",
                 _ => $"URL de {platformName} incorrecta.",
             };
             return false;
@@ -314,7 +313,9 @@ public sealed class ApifySocialCommentProvider(
 
     private static bool IsValidFacebookUrl(string host, string path, Uri uri)
     {
-        if (!(host.Contains("facebook.com") || host.Contains("fb.com") || host.Contains("fb.watch")))
+        if (
+            !(host.Contains("facebook.com") || host.Contains("fb.com") || host.Contains("fb.watch"))
+        )
         {
             return false;
         }
@@ -339,7 +340,9 @@ public sealed class ApifySocialCommentProvider(
             '|',
             sourceUrls
                 .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(pair => $"{pair.Key.ToLowerInvariant()}:{pair.Value.Trim().ToLowerInvariant()}")
+                .Select(pair =>
+                    $"{pair.Key.ToLowerInvariant()}:{pair.Value.Trim().ToLowerInvariant()}"
+                )
         );
     }
 
@@ -547,6 +550,14 @@ public sealed class ApifySocialCommentProvider(
                 values("createTime"),
                 values("timestamp"),
                 values("createdAt")
+            ),
+            ReactionCount: ParseCount(
+                values("likesCount"),
+                values("likeCount"),
+                values("diggCount"),
+                values("favorite_count"),
+                values("reactionsCount"),
+                values("likes")
             )
         );
     }
@@ -732,10 +743,7 @@ public sealed class ApifySocialCommentProvider(
             return [];
         }
 
-        var commentsPerPost = Math.Max(
-            1,
-            commentsPerPostOverride ?? settings.MaxCommentsPerPost
-        );
+        var commentsPerPost = Math.Max(1, commentsPerPostOverride ?? settings.MaxCommentsPerPost);
         var batchSize = Math.Max(1, batchSizeOverride ?? settings.CommentUrlBatchSize);
         var batches = posts
             .Select((post, index) => (post, index))
@@ -850,12 +858,7 @@ public sealed class ApifySocialCommentProvider(
                 }
 
                 return new SocialPost(
-                    FirstNonEmpty(
-                        values("id"),
-                        values("postId"),
-                        values("shortCode"),
-                        url
-                    ),
+                    FirstNonEmpty(values("id"), values("postId"), values("shortCode"), url),
                     platform,
                     FirstNonEmpty(
                         values("caption"),
@@ -922,6 +925,14 @@ public sealed class ApifySocialCommentProvider(
                 values("commentTimestamp"),
                 values("createdAt"),
                 values("createTimeISO")
+            ),
+            ReactionCount: ParseCount(
+                values("likesCount"),
+                values("likeCount"),
+                values("diggCount"),
+                values("favorite_count"),
+                values("reactionsCount"),
+                values("likes")
             )
         );
     }
@@ -960,6 +971,14 @@ public sealed class ApifySocialCommentProvider(
                 values("commentTimestamp"),
                 values("createdAt"),
                 values("time")
+            ),
+            ReactionCount: ParseCount(
+                values("likesCount"),
+                values("likeCount"),
+                values("diggCount"),
+                values("favorite_count"),
+                values("reactionsCount"),
+                values("likes")
             )
         );
     }
@@ -1033,12 +1052,7 @@ public sealed class ApifySocialCommentProvider(
             var postUrl = string.IsNullOrWhiteSpace(statusHandle)
                 ? $"https://x.com/i/status/{tweetId}"
                 : $"https://x.com/{statusHandle}/status/{tweetId}";
-            var post = new XTweetPost(
-                tweetId,
-                "Publicación de X",
-                postUrl,
-                DateTimeOffset.UtcNow
-            );
+            var post = new XTweetPost(tweetId, "Publicación de X", postUrl, DateTimeOffset.UtcNow);
             var pages = Math.Max(settings.XMaxCommentPages, 10);
             logger.LogInformation("X: comentarios del post {TweetId}", tweetId);
 
@@ -1184,43 +1198,45 @@ public sealed class ApifySocialCommentProvider(
         );
 
         using var gate = new SemaphoreSlim(2, 2);
-        var tasks = posts.Select(async (post, index) =>
-        {
-            await gate.WaitAsync(cancellationToken);
-            try
+        var tasks = posts.Select(
+            async (post, index) =>
             {
-                var pages =
-                    index < settings.XRecentPostsBoost
-                        ? Math.Max(settings.XMaxCommentPages, 10)
-                        : settings.XMaxCommentPages;
+                await gate.WaitAsync(cancellationToken);
+                try
+                {
+                    var pages =
+                        index < settings.XRecentPostsBoost
+                            ? Math.Max(settings.XMaxCommentPages, 10)
+                            : settings.XMaxCommentPages;
 
-                var tweetComments = await apifyClient.RunActorSyncAsync(
-                    settings.Actors.XComments,
-                    new { tweetId = post.Id, maxPages = pages },
-                    apifyToken,
-                    cancellationToken
-                );
+                    var tweetComments = await apifyClient.RunActorSyncAsync(
+                        settings.Actors.XComments,
+                        new { tweetId = post.Id, maxPages = pages },
+                        apifyToken,
+                        cancellationToken
+                    );
 
-                return tweetComments
-                    .Select(item => MapXComment(item, post, handle))
-                    .Where(comment => comment is not null)
-                    .Cast<SocialCommentDraft>()
-                    .ToArray();
+                    return tweetComments
+                        .Select(item => MapXComment(item, post, handle))
+                        .Where(comment => comment is not null)
+                        .Cast<SocialCommentDraft>()
+                        .ToArray();
+                }
+                catch (Exception exception)
+                {
+                    logger.LogWarning(
+                        exception,
+                        "No se pudieron obtener comentarios del tweet {TweetId}",
+                        post.Id
+                    );
+                    return [];
+                }
+                finally
+                {
+                    gate.Release();
+                }
             }
-            catch (Exception exception)
-            {
-                logger.LogWarning(
-                    exception,
-                    "No se pudieron obtener comentarios del tweet {TweetId}",
-                    post.Id
-                );
-                return [];
-            }
-            finally
-            {
-                gate.Release();
-            }
-        });
+        );
 
         var batches = await Task.WhenAll(tasks);
         return batches.SelectMany(batch => batch).ToArray();
@@ -1325,7 +1341,15 @@ public sealed class ApifySocialCommentProvider(
             FirstNonEmpty(values("commentUrl"), postUrl),
             postTitle,
             postUrl,
-            ParseTimestamp(values("commentTimestamp"), values("timestamp"))
+            ParseTimestamp(values("commentTimestamp"), values("timestamp")),
+            ReactionCount: ParseCount(
+                values("likesCount"),
+                values("likeCount"),
+                values("diggCount"),
+                values("favorite_count"),
+                values("reactionsCount"),
+                values("likes")
+            )
         );
     }
 
@@ -1406,6 +1430,14 @@ public sealed class ApifySocialCommentProvider(
                 values("timestamp"),
                 values("createTimeISO"),
                 values("date")
+            ),
+            ReactionCount: ParseCount(
+                values("likesCount"),
+                values("likeCount"),
+                values("diggCount"),
+                values("favorite_count"),
+                values("reactionsCount"),
+                values("likes")
             )
         );
     }
@@ -1435,7 +1467,11 @@ public sealed class ApifySocialCommentProvider(
                 continue;
             }
 
-            var displayName = FirstNonEmpty(authorValues("name"), authorValues("nickname"), username);
+            var displayName = FirstNonEmpty(
+                authorValues("name"),
+                authorValues("nickname"),
+                username
+            );
             return (username, displayName);
         }
 
@@ -1527,6 +1563,14 @@ public sealed class ApifySocialCommentProvider(
                 values("createTimeISO"),
                 values("createTime"),
                 values("date")
+            ),
+            ReactionCount: ParseCount(
+                values("likesCount"),
+                values("likeCount"),
+                values("diggCount"),
+                values("favorite_count"),
+                values("reactionsCount"),
+                values("likes")
             )
         );
     }
@@ -1548,12 +1592,16 @@ public sealed class ApifySocialCommentProvider(
 
         if (!Uri.TryCreate(profileUrl, UriKind.Absolute, out var uri))
         {
-            var segments = profileUrl.TrimEnd('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var segments = profileUrl
+                .TrimEnd('/')
+                .Split('/', StringSplitOptions.RemoveEmptyEntries);
             var last = segments.LastOrDefault() ?? string.Empty;
             return platform == "tiktok" ? last.TrimStart('@') : last;
         }
 
-        var pathSegments = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var pathSegments = uri
+            .AbsolutePath.Trim('/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries);
         var name = pathSegments.FirstOrDefault() ?? string.Empty;
         if (platform == "tiktok")
         {
@@ -1668,6 +1716,27 @@ public sealed class ApifySocialCommentProvider(
                 _ => string.Empty,
             };
         };
+    }
+
+    private static int ParseCount(params string[] values)
+    {
+        foreach (var value in values)
+        {
+            if (
+                double.TryParse(
+                    value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var parsed
+                )
+                && parsed >= 0
+            )
+            {
+                return (int)Math.Min(parsed, int.MaxValue);
+            }
+        }
+
+        return 0;
     }
 
     private static string FirstNonEmpty(params string?[] values) =>

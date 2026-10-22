@@ -20,8 +20,7 @@ public static class LocalAppStorage
             Path.Combine(AppContext.BaseDirectory, ".emotions-uleam"),
         };
 
-        return candidates.FirstOrDefault(CanWriteToDirectory)
-            ?? candidates[^1];
+        return candidates.FirstOrDefault(CanWriteToDirectory) ?? candidates[^1];
     }
 
     public static string GetKeysDirectory() => Path.Combine(GetAppDataDirectory(), ".keys");

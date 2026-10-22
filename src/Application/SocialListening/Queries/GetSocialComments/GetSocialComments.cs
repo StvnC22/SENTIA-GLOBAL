@@ -77,7 +77,7 @@ internal class GetSocialCommentsQueryHandler(
                     ? analyzed
                     : SpanishSentimentAnalyzer.Analyze(draft.Text);
 
-                var enrichment = TextEnrichment.Extract(draft.Text);
+                var enrichment = TextEnrichment.Extract(draft.Text, sentiment.Label);
 
                 return new SocialComment(
                     draft.Id,
@@ -97,7 +97,8 @@ internal class GetSocialCommentsQueryHandler(
                     draft.ReactionCount,
                     enrichment.Topics,
                     enrichment.Entities,
-                    enrichment.Emotions
+                    enrichment.Emotions,
+                    enrichment.Aspects
                 );
             })
             .Where(comment =>
@@ -319,15 +320,53 @@ public static class TextEnrichment
         ("preocupación", ["urgente", "imposible", "no funciona", "otra vez", "necesito"]),
     ];
 
-    public static TextEnrichmentResult Extract(string text)
+    private static readonly string[] ClauseSeparators =
+    [
+        ".",
+        "!",
+        "?",
+        ";",
+        ",",
+        " pero ",
+        " aunque ",
+        " sin embargo ",
+    ];
+
+    public static TextEnrichmentResult Extract(string text, string? overallSentimentLabel = null)
     {
         var lower = text.ToLowerInvariant();
-        var topics = TopicLexicon
+        var matchedTopics = TopicLexicon
             .Where(entry =>
                 entry.Signals.Any(signal => lower.Contains(signal, StringComparison.Ordinal))
             )
-            .Select(entry => entry.Topic)
-            .Distinct()
+            .ToArray();
+        var topics = matchedTopics.Select(entry => entry.Topic).Distinct().ToArray();
+
+        var clauses = lower.Split(
+            ClauseSeparators,
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+        );
+        var aspects = matchedTopics
+            .Select(entry =>
+            {
+                var clauseLabels = clauses
+                    .Where(clause =>
+                        entry.Signals.Any(signal =>
+                            clause.Contains(signal, StringComparison.Ordinal)
+                        )
+                    )
+                    .Select(clause => SpanishSentimentAnalyzer.Analyze(clause).Label)
+                    .ToArray();
+
+                var label =
+                    clauseLabels.Contains("negative") ? "negative"
+                    : clauseLabels.Contains("positive") ? "positive"
+                    : matchedTopics.Length == 1 && !string.IsNullOrWhiteSpace(overallSentimentLabel)
+                        ? overallSentimentLabel
+                    : "neutral";
+
+                return new AspectSentiment(entry.Topic, label);
+            })
             .ToArray();
 
         var emotions = EmotionLexicon
@@ -351,15 +390,18 @@ public static class TextEnrichment
             }
         }
 
-        return new TextEnrichmentResult(topics, entities.Distinct().ToArray(), emotions);
+        return new TextEnrichmentResult(topics, entities.Distinct().ToArray(), emotions, aspects);
     }
 }
 
 public record TextEnrichmentResult(
     IReadOnlyList<string> Topics,
     IReadOnlyList<string> Entities,
-    IReadOnlyList<string> Emotions
+    IReadOnlyList<string> Emotions,
+    IReadOnlyList<AspectSentiment> Aspects
 );
+
+public record AspectSentiment(string Aspect, string Label);
 
 public record SocialListeningDashboard(
     IReadOnlyCollection<SocialComment> Comments,
@@ -388,7 +430,8 @@ public record SocialComment(
     int ReactionCount = 0,
     IReadOnlyList<string>? Topics = null,
     IReadOnlyList<string>? Entities = null,
-    IReadOnlyList<string>? Emotions = null
+    IReadOnlyList<string>? Emotions = null,
+    IReadOnlyList<AspectSentiment>? Aspects = null
 );
 
 public record SentimentResult(string Label, string DisplayName, int Confidence);
@@ -399,8 +442,26 @@ public record DashboardInsights(
     IReadOnlyList<TemporalTrendPoint> TemporalTrend,
     IReadOnlyList<GeoMentionRank> GeoRanking,
     IReadOnlyList<WordCloudTerm> WordCloud,
-    string ExecutiveSummary
+    string ExecutiveSummary,
+    IReadOnlyList<NetworkSentiment> NetworkBreakdown,
+    IReadOnlyList<AspectSummary> AspectBreakdown,
+    IReadOnlyList<LabelCount> EmotionBreakdown,
+    IReadOnlyList<LabelCount> TopEntities,
+    int TotalReactions
 );
+
+public record NetworkSentiment(
+    string Platform,
+    int Total,
+    int Positive,
+    int Neutral,
+    int Negative,
+    int Reactions
+);
+
+public record AspectSummary(string Aspect, int Mentions, int Positive, int Neutral, int Negative);
+
+public record LabelCount(string Label, int Count);
 
 public record TemporalTrendPoint(DateTime Date, int Total, int Positive, int Neutral, int Negative);
 

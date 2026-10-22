@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=sentia-20261017-dates-theme">
+  <link rel="stylesheet" href="/styles.css?v=sentia-20261022-rubrica">
 </head>
 <body class="app-body">
   <!-- LOGIN GATE -->
@@ -30,7 +30,24 @@
           <span>Contraseña</span>
           <input id="loginPassword" class="modern-input" type="password" autocomplete="current-password" required placeholder="••••••••">
         </label>
-        <p class="form-help-text">Roles: Administrador, Analista y Consulta. Ejemplos: administrator@localhost / analista@localhost / consulta@localhost</p>
+        <p class="form-help-text">Cuentas de prueba. Pulsa una para entrar directo.</p>
+        <div class="demo-accounts" aria-label="Cuentas de prueba">
+          <button class="demo-account" type="button" data-email="administrator@localhost" data-password="Administrator1!">
+            <strong>Administrador</strong>
+            <span>administrator@localhost</span>
+            <span>Administrator1!</span>
+          </button>
+          <button class="demo-account" type="button" data-email="analista@localhost" data-password="Analista1!">
+            <strong>Analista</strong>
+            <span>analista@localhost</span>
+            <span>Analista1!</span>
+          </button>
+          <button class="demo-account" type="button" data-email="consulta@localhost" data-password="Consulta1!">
+            <strong>Consulta</strong>
+            <span>consulta@localhost</span>
+            <span>Consulta1!</span>
+          </button>
+        </div>
         <p class="login-error" id="loginError" hidden></p>
         <button class="primary-button" id="loginSubmitBtn" type="submit"><span>Iniciar sesión</span></button>
       </form>
@@ -111,7 +128,7 @@
 
         <div class="nav-section-title">GESTIÓN & HISTORIAL</div>
 
-        <button class="nav-item" data-nav="monitors" type="button" title="Monitoreos periódicos" data-role-min="Analyst">
+        <button class="nav-item" data-nav="monitors" type="button" title="Monitoreos y alertas">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2zm6-6V11a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z"/></svg>
           </span>
@@ -125,6 +142,13 @@
           </span>
           <span class="nav-label">Historial</span>
           <span class="history-badge" id="historyBadge">0</span>
+        </button>
+
+        <button class="nav-item" data-nav="users" type="button" title="Usuarios y roles" data-role-min="Administrator">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </span>
+          <span class="nav-label">Usuarios</span>
         </button>
 
         <button class="nav-item" data-nav="settings" type="button" title="Configuración" data-role-min="Administrator">
@@ -375,38 +399,14 @@
               <!-- Network Distribution Card -->
               <div class="glass-card">
                 <div class="card-header">
-                  <h3>Distribución por Red Social</h3>
-                  <span class="card-tag">Volumen</span>
+                  <h3>Sentimiento por Red Social</h3>
+                  <span class="card-tag">Volumen y polaridad</span>
                 </div>
-                <div class="network-distribution-bars" id="networkDistributionBars">
-                  <div class="net-bar-item">
-                    <div class="net-bar-info">
-                      <span class="net-bar-label instagram">Instagram</span>
-                      <strong class="net-bar-val" id="dashCountInstagram">0</strong>
-                    </div>
-                    <div class="net-bar-track"><div class="net-bar-fill instagram" id="dashBarInstagram" style="width:0%"></div></div>
-                  </div>
-                  <div class="net-bar-item">
-                    <div class="net-bar-info">
-                      <span class="net-bar-label facebook">Facebook</span>
-                      <strong class="net-bar-val" id="dashCountFacebook">0</strong>
-                    </div>
-                    <div class="net-bar-track"><div class="net-bar-fill facebook" id="dashBarFacebook" style="width:0%"></div></div>
-                  </div>
-                  <div class="net-bar-item">
-                    <div class="net-bar-info">
-                      <span class="net-bar-label tiktok">TikTok</span>
-                      <strong class="net-bar-val" id="dashCountTiktok">0</strong>
-                    </div>
-                    <div class="net-bar-track"><div class="net-bar-fill tiktok" id="dashBarTiktok" style="width:0%"></div></div>
-                  </div>
-                  <div class="net-bar-item">
-                    <div class="net-bar-info">
-                      <span class="net-bar-label x">X (Twitter)</span>
-                      <strong class="net-bar-val" id="dashCountX">0</strong>
-                    </div>
-                    <div class="net-bar-track"><div class="net-bar-fill x" id="dashBarX" style="width:0%"></div></div>
-                  </div>
+                <div class="network-distribution-bars" id="networkDistributionBars"></div>
+                <div class="sentiment-legend">
+                  <span><i class="positive"></i>Positivo</span>
+                  <span><i class="neutral"></i>Neutral</span>
+                  <span><i class="negative"></i>Negativo</span>
                 </div>
               </div>
 
@@ -556,6 +556,79 @@
               <div class="semantic-cloud" id="dashSemanticCloud">
                 <span class="insight-empty">Analiza un tema para ver las palabras clave más relevantes.</span>
               </div>
+            </div>
+          </div>
+
+          <div class="insights-grid observatorio-insights">
+            <div class="glass-card">
+              <div class="card-header">
+                <div>
+                  <span class="insight-kicker">Análisis por aspecto</span>
+                  <h3>Sentimiento por tema</h3>
+                </div>
+                <span class="card-tag" id="dashAspectMeta">0 aspectos</span>
+              </div>
+              <div class="geo-ranking" id="dashAspectBreakdown">
+                <span class="insight-empty">Sin aspectos identificados.</span>
+              </div>
+            </div>
+            <div class="glass-card">
+              <div class="card-header">
+                <div>
+                  <span class="insight-kicker">Emociones</span>
+                  <h3>Emociones detectadas</h3>
+                </div>
+                <span class="card-tag" id="dashEmotionMeta">0</span>
+              </div>
+              <div class="label-count-list" id="dashEmotionBreakdown">
+                <span class="insight-empty">Sin emociones detectadas.</span>
+              </div>
+            </div>
+            <div class="glass-card">
+              <div class="card-header">
+                <div>
+                  <span class="insight-kicker">Entidades</span>
+                  <h3>Actores y lugares mencionados</h3>
+                </div>
+                <span class="card-tag" id="dashEntityMeta">0</span>
+              </div>
+              <div class="label-count-list" id="dashEntityBreakdown">
+                <span class="insight-empty">Sin entidades detectadas.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card dashboard-results-card">
+            <div class="card-header">
+              <div>
+                <span class="insight-kicker">Resultados</span>
+                <h3>Opiniones recolectadas · enlace a la publicación de origen</h3>
+              </div>
+              <span class="card-tag" id="dashResultsMeta">0</span>
+            </div>
+            <div class="dashboard-results-filters">
+              <input id="dashResultsSearch" class="modern-input" type="search" placeholder="Filtrar por texto, autor o cantón">
+              <select id="dashResultsSentiment" class="modern-select">
+                <option value="all">Todos los sentimientos</option>
+                <option value="positive">Positivos</option>
+                <option value="neutral">Neutrales</option>
+                <option value="negative">Negativos</option>
+              </select>
+            </div>
+            <div class="table-responsive">
+              <table class="comments-table">
+                <thead>
+                  <tr>
+                    <th>Red</th>
+                    <th>Usuario</th>
+                    <th>Comentario</th>
+                    <th>Publicación</th>
+                    <th>Sentimiento</th>
+                    <th>Fecha</th>
+                  </tr>
+                </thead>
+                <tbody id="dashResultsBody"></tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -1237,6 +1310,69 @@
         </section>
 
         <!-- ========================================== -->
+        <!-- VIEW: USUARIOS Y ROLES                     -->
+        <!-- ========================================== -->
+        <section class="view-panel" id="view-users">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-badge">GESTIÓN · SEGURIDAD</span>
+              <h1 class="page-title">Usuarios y roles</h1>
+              <p class="page-description">Cree cuentas, asigne roles (Administrador, Analista, Consulta), desbloquee accesos y revise la actividad.</p>
+            </div>
+            <button class="secondary-button" id="refreshUsersBtn" type="button"><span>Actualizar</span></button>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>Nuevo usuario</h3>
+              <span class="card-tag">Contraseña: mín. 8, mayúscula, minúscula y número</span>
+            </div>
+            <form id="createUserForm" class="observatorio-form-grid">
+              <label class="observatorio-field wide">
+                <span>Correo</span>
+                <input id="newUserEmail" class="modern-input" type="email" required placeholder="usuario@uleam.edu.ec">
+              </label>
+              <label class="observatorio-field">
+                <span>Contraseña</span>
+                <input id="newUserPassword" class="modern-input" type="password" required minlength="8" autocomplete="new-password">
+              </label>
+              <label class="observatorio-field">
+                <span>Rol</span>
+                <select id="newUserRole" class="modern-select">
+                  <option value="Consulta">Consulta</option>
+                  <option value="Analyst">Analista</option>
+                  <option value="Administrator">Administrador</option>
+                </select>
+              </label>
+              <div class="observatorio-actions-row">
+                <button class="primary-button" type="submit"><span>Crear usuario</span></button>
+              </div>
+            </form>
+            <p class="form-help-text" id="createUserError" hidden></p>
+          </div>
+
+          <div class="glass-card" style="margin-top:1.25rem">
+            <div class="card-header">
+              <h3>Cuentas registradas</h3>
+              <span class="card-tag" id="usersCountMeta">0</span>
+            </div>
+            <div class="table-responsive">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================================== -->
         <!-- VIEW 7: MÓDULO HISTORIAL                   -->
         <!-- ========================================== -->
         <section class="view-panel" id="view-history">
@@ -1442,6 +1578,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=sentia-20261017-dates-es" defer></script>
+  <script src="/app.js?v=sentia-20261022-rubrica" defer></script>
 </body>
 </html>

@@ -44,6 +44,25 @@ if (!isDesktopMode)
     builder.AddKeyVaultIfConfigured();
 }
 
+var configuredConnection = builder.Configuration.GetConnectionString("AnalisisSentimientoDb");
+var usesDefaultLocalDatabase =
+    string.IsNullOrWhiteSpace(configuredConnection)
+    || configuredConnection.StartsWith(
+        "DataSource=AnalisisSentimiento.db",
+        StringComparison.OrdinalIgnoreCase
+    );
+
+if (isDesktopMode && usesDefaultLocalDatabase)
+{
+    var databasePath = Path.Combine(
+        LocalAppStorage.GetAppDataDirectory(),
+        "sentia-observatorio.db"
+    );
+    builder.Configuration["ConnectionStrings:AnalisisSentimientoDb"] =
+        $"DataSource={databasePath};Cache=Shared";
+    builder.Configuration[ApplicationDbContextInitialiser.PreserveDataKey] = "true";
+}
+
 builder.AddApplicationServices();
 builder.AddInfrastructureServices();
 builder.AddWebServices(includeApiDocumentation: !isDesktopMode);
@@ -129,7 +148,9 @@ try
 catch (IOException exception) when (isDesktopMode)
 {
     Console.Error.WriteLine($"No se pudo iniciar Sentia Global: {exception.Message}");
-    Console.Error.WriteLine("Cierra otras copias de la app o libera el puerto e inténtalo de nuevo.");
+    Console.Error.WriteLine(
+        "Cierra otras copias de la app o libera el puerto e inténtalo de nuevo."
+    );
     Environment.ExitCode = 1;
 }
 

@@ -9,7 +9,11 @@ public class ActivityLogEntry : BaseEntity
     public string Action { get; private set; } = string.Empty;
     public string? Detail { get; private set; }
 
-    public static ActivityLogEntry Create(string action, string? userName = null, string? detail = null)
+    public static ActivityLogEntry Create(
+        string action,
+        string? userName = null,
+        string? detail = null
+    )
     {
         return new ActivityLogEntry
         {

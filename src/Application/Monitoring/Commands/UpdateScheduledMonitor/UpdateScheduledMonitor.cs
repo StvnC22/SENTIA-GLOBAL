@@ -20,7 +20,8 @@ public record UpdateScheduledMonitorCommand(
     string? Parish = null
 ) : ICommand<ScheduledMonitorDto>;
 
-public class UpdateScheduledMonitorCommandValidator : AbstractValidator<UpdateScheduledMonitorCommand>
+public class UpdateScheduledMonitorCommandValidator
+    : AbstractValidator<UpdateScheduledMonitorCommand>
 {
     public UpdateScheduledMonitorCommandValidator()
     {

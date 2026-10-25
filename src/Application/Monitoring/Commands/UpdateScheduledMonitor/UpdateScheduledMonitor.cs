@@ -28,7 +28,7 @@ public class UpdateScheduledMonitorCommandValidator
         RuleFor(x => x.Id).GreaterThan(0);
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Topic).NotEmpty().MaximumLength(500);
-        RuleFor(x => x.IntervalMinutes).InclusiveBetween(5, 24 * 60);
+        RuleFor(x => x.IntervalMinutes).InclusiveBetween(1, 24 * 60);
     }
 }
 

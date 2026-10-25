@@ -1480,6 +1480,8 @@ html, body {
   gap: 0.5rem;
 }
 
+.empty-state[hidden] { display: none !important; }
+
 .empty-state span { font-size: 2.5rem; color: var(--text-muted); opacity: 0.5; }
 .empty-state h3 { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
 .empty-state p { font-size: 0.85rem; color: var(--text-muted); }

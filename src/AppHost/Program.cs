@@ -4,7 +4,14 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 builder.AddAzureContainerAppEnvironment("aca-env");
 
-var databaseServer = builder.AddSqlite(Services.Database);
+var databaseDirectory = Directory
+    .CreateDirectory(Path.Combine(builder.AppHostDirectory, ".data"))
+    .FullName;
+var databaseServer = builder.AddSqlite(
+    Services.Database,
+    databaseDirectory,
+    "sentia-observatorio.db"
+);
 
 var web = builder
     .AddProject<Projects.Web>(Services.WebApi)
@@ -12,6 +19,7 @@ var web = builder
     .WaitFor(databaseServer)
     .WithExternalHttpEndpoints()
     .WithAspNetCoreEnvironment()
+    .WithEnvironment("Database__PreserveData", "true")
     .WithUrlForEndpoint(
         "http",
         url =>

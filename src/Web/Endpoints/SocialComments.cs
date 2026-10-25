@@ -1,5 +1,7 @@
 using AnalisisSentimiento.Application.Monitoring.Commands.LogActivity;
+using AnalisisSentimiento.Application.SocialListening.Commands.CollectSocialComments;
 using AnalisisSentimiento.Application.SocialListening.Queries.GetSocialComments;
+using AnalisisSentimiento.Application.SocialListening.Queries.SearchOpinions;
 using AnalisisSentimiento.Application.SocialListening.Territory;
 using AnalisisSentimiento.Web.Reports;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -13,25 +15,20 @@ public class SocialComments : IEndpointGroup
     public static void Map(RouteGroupBuilder groupBuilder)
     {
         groupBuilder.RequireAuthorization();
-        groupBuilder.MapGet(GetSocialComments);
+        groupBuilder.MapGet(SearchOpinions);
+        groupBuilder.MapPost(CollectSocialComments, "/collect");
         groupBuilder.MapGet(GetTerritoryCatalog, "/territory");
         groupBuilder.MapGet(ExportSocialComments, "/export");
     }
 
-    [EndpointSummary("Obtener comentarios y análisis de sentimiento")]
+    [EndpointSummary("Buscar opiniones recolectadas")]
     [EndpointDescription(
-        "Devuelve comentarios sociales clasificados por sentimiento, con filtros de tema (Y/O/NO), fechas y territorio."
+        "Busca en el corpus de opiniones recolectadas con operadores Y/O/NO, hashtags, sinónimos, red, fechas y territorio."
     )]
-    public static async Task<Ok<SocialListeningDashboard>> GetSocialComments(
+    public static async Task<Ok<SocialListeningDashboard>> SearchOpinions(
         ISender sender,
-        string? platform,
-        bool refresh = false,
+        string? platform = null,
         string? topic = null,
-        string? prompt = null,
-        string? instagramUrl = null,
-        string? facebookUrl = null,
-        string? tiktokUrl = null,
-        string? xUrl = null,
         DateTimeOffset? fromDate = null,
         DateTimeOffset? toDate = null,
         string? province = null,
@@ -39,26 +36,22 @@ public class SocialComments : IEndpointGroup
         string? parish = null
     )
     {
-        var sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        AddSource(sources, "instagram", instagramUrl);
-        AddSource(sources, "facebook", facebookUrl);
-        AddSource(sources, "tiktok", tiktokUrl);
-        AddSource(sources, "x", xUrl);
         var dashboard = await sender.Send(
-            new GetSocialCommentsQuery(
-                platform,
-                refresh,
-                topic,
-                prompt,
-                sources,
-                fromDate,
-                toDate,
-                province,
-                canton,
-                parish
-            )
+            new SearchOpinionsQuery(topic, platform, fromDate, toDate, province, canton, parish)
         );
         return TypedResults.Ok(dashboard);
+    }
+
+    [EndpointSummary("Recolectar opiniones de una red social")]
+    [EndpointDescription(
+        "Obtiene comentarios públicos de un perfil o publicación, los clasifica y los guarda en el corpus del Observatorio."
+    )]
+    public static async Task<
+        Results<Ok<SocialListeningDashboard>, ProblemHttpResult>
+    > CollectSocialComments(ISender sender, CollectSocialCommentsCommand command)
+    {
+        var result = await sender.Send(command);
+        return result.IsSuccess ? TypedResults.Ok(result.Value) : result.ToProblemHttpResult();
     }
 
     [EndpointSummary("Catálogo territorial de Manabí")]
@@ -82,11 +75,6 @@ public class SocialComments : IEndpointGroup
         string format = "csv",
         string? platform = null,
         string? topic = null,
-        string? prompt = null,
-        string? instagramUrl = null,
-        string? facebookUrl = null,
-        string? tiktokUrl = null,
-        string? xUrl = null,
         DateTimeOffset? fromDate = null,
         DateTimeOffset? toDate = null,
         string? province = null,
@@ -94,25 +82,8 @@ public class SocialComments : IEndpointGroup
         string? parish = null
     )
     {
-        var sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        AddSource(sources, "instagram", instagramUrl);
-        AddSource(sources, "facebook", facebookUrl);
-        AddSource(sources, "tiktok", tiktokUrl);
-        AddSource(sources, "x", xUrl);
-
         var dashboard = await sender.Send(
-            new GetSocialCommentsQuery(
-                platform,
-                false,
-                topic,
-                prompt,
-                sources,
-                fromDate,
-                toDate,
-                province,
-                canton,
-                parish
-            )
+            new SearchOpinionsQuery(topic, platform, fromDate, toDate, province, canton, parish)
         );
 
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
@@ -154,12 +125,6 @@ public class SocialComments : IEndpointGroup
             )
         );
         return file;
-    }
-
-    private static void AddSource(IDictionary<string, string> sources, string platform, string? url)
-    {
-        if (!string.IsNullOrWhiteSpace(url))
-            sources[platform] = url.Trim();
     }
 }
 
@@ -535,7 +500,9 @@ internal static class SocialCommentsExport
         {
             var place = string.Join(
                 " · ",
-                new[] { c.Canton, c.Parish }.Where(x => !string.IsNullOrWhiteSpace(x))
+                new[] { c.Canton, c.Parish }
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
             );
             pdf.Paragraph(
                 $"{NetworkName(c.Platform)} · {c.AuthorName} · {c.Sentiment.DisplayName} ({c.Sentiment.Confidence}%) · {EcuadorTime(c.PublishedAt, "dd/MM/yyyy HH:mm")}"

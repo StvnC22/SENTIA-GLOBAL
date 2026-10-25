@@ -510,3 +510,6 @@ $RECYCLE.BIN/
 # Herramientas y cachés locales de desarrollo
 .tools/
 /dist/
+
+# Base local del AppHost (corpus del Observatorio)
+src/AppHost/.data/

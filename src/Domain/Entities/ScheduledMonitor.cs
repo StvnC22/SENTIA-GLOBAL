@@ -33,7 +33,7 @@ public class ScheduledMonitor : BaseAuditableEntity
         string? ownerUserName = null
     )
     {
-        var normalizedInterval = Math.Clamp(intervalMinutes, 5, 24 * 60);
+        var normalizedInterval = Math.Clamp(intervalMinutes, 1, 24 * 60);
         var now = DateTimeOffset.UtcNow;
 
         return new ScheduledMonitor
@@ -68,7 +68,7 @@ public class ScheduledMonitor : BaseAuditableEntity
         Province = NormalizeOptional(province);
         Canton = NormalizeOptional(canton);
         Parish = NormalizeOptional(parish);
-        IntervalMinutes = Math.Clamp(intervalMinutes, 5, 24 * 60);
+        IntervalMinutes = Math.Clamp(intervalMinutes, 1, 24 * 60);
         IsActive = isActive;
         if (isActive && NextRunAt is null)
         {

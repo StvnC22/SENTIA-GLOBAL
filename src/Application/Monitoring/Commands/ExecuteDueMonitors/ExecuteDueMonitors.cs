@@ -1,5 +1,6 @@
 using AnalisisSentimiento.Application.Common.Interfaces;
-using AnalisisSentimiento.Application.SocialListening.Queries.GetSocialComments;
+using AnalisisSentimiento.Application.SocialListening.Commands.CollectSocialComments;
+using AnalisisSentimiento.Application.SocialListening.Queries.SearchOpinions;
 using AnalisisSentimiento.Domain.Entities;
 
 namespace AnalisisSentimiento.Application.Monitoring.Commands.ExecuteDueMonitors;
@@ -48,11 +49,18 @@ internal static class MonitorExecution
     {
         try
         {
+            await RefreshKnownSourcesAsync(
+                context,
+                sender,
+                monitor.Platform,
+                now,
+                cancellationToken
+            );
+
             var dashboard = await sender.Send(
-                new GetSocialCommentsQuery(
-                    Platform: monitor.Platform,
-                    Refresh: true,
+                new SearchOpinionsQuery(
                     Topic: monitor.Topic,
+                    Platform: monitor.Platform,
                     Province: monitor.Province,
                     Canton: monitor.Canton,
                     Parish: monitor.Parish
@@ -95,5 +103,48 @@ internal static class MonitorExecution
         }
 
         await context.SaveChangesAsync(cancellationToken);
+    }
+
+    private const int MaxSourcesPerRun = 8;
+
+    private static async Task RefreshKnownSourcesAsync(
+        IApplicationDbContext context,
+        ISender sender,
+        string? platform,
+        DateTimeOffset now,
+        CancellationToken cancellationToken
+    )
+    {
+        var normalizedPlatform = platform?.Trim().ToLowerInvariant();
+        var sources = (
+            await context
+                .CollectedOpinions.AsNoTracking()
+                .Where(opinion =>
+                    string.IsNullOrEmpty(normalizedPlatform)
+                    || opinion.Platform == normalizedPlatform
+                )
+                .Select(opinion => new
+                {
+                    opinion.Platform,
+                    opinion.SourceUrl,
+                    opinion.Id,
+                })
+                .ToListAsync(cancellationToken)
+        ).GroupBy(source => (source.Platform, source.SourceUrl)).OrderByDescending(group => group.Max(source => source.Id)).Take(MaxSourcesPerRun).Select(group => group.Key).ToArray();
+
+        foreach (var (sourcePlatform, sourceUrl) in sources)
+        {
+            await OpinionCollector.CollectAsync(
+                context,
+                sender,
+                sourcePlatform,
+                sourceUrl,
+                refresh: false,
+                prompt: null,
+                now,
+                cancellationToken
+            );
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

@@ -14,5 +14,7 @@ public interface IApplicationDbContext
 
     DbSet<ActivityLogEntry> ActivityLogEntries { get; }
 
+    DbSet<CollectedOpinion> CollectedOpinions { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }

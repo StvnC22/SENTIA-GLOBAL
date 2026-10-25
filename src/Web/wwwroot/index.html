@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=sentia-20261022-rubrica">
+  <link rel="stylesheet" href="/styles.css?v=sentia-20261025-monitoreo">
 </head>
 <body class="app-body">
   <!-- LOGIN GATE -->
@@ -322,7 +322,7 @@
               <button class="secondary-button" id="observatorioScheduleBtn" type="button" data-role-min="Analyst"><span>Programar monitoreo</span></button>
               <label class="observatorio-field schedule-interval-field" data-role-min="Analyst">
                 <span>Cada (min)</span>
-                <input id="observatorioIntervalInput" class="modern-input" type="number" min="5" max="1440" value="60">
+                <input id="observatorioIntervalInput" class="modern-input" type="number" min="1" max="1440" value="60">
               </label>
               <div class="export-group">
                 <button class="export-button" id="exportCsvBtn" type="button" data-export="csv">CSV</button>
@@ -656,7 +656,7 @@
               <label for="instagramSourceInput" class="input-label">URL de Instagram (Perfil o Publicación)</label>
               <div class="url-input-wrapper">
                 <input id="instagramSourceInput" type="url" class="modern-input" placeholder="https://www.instagram.com/marca o https://www.instagram.com/p/CODE/">
-                <button class="primary-button analyze-single-btn" data-platform="instagram" type="button">
+                <button class="primary-button analyze-single-btn" data-role-min="Analyst" data-platform="instagram" type="button">
                   <span>Analizar Instagram</span>
                 </button>
               </div>
@@ -763,7 +763,7 @@
               <label for="facebookSourceInput" class="input-label">URL de Facebook (Página o Publicación)</label>
               <div class="url-input-wrapper">
                 <input id="facebookSourceInput" type="url" class="modern-input" placeholder="https://www.facebook.com/pagina o profile.php?id=123">
-                <button class="primary-button analyze-single-btn" data-platform="facebook" type="button">
+                <button class="primary-button analyze-single-btn" data-role-min="Analyst" data-platform="facebook" type="button">
                   <span>Analizar Facebook</span>
                 </button>
               </div>
@@ -870,7 +870,7 @@
               <label for="tiktokSourceInput" class="input-label">URL de TikTok (Perfil o Video /video/123)</label>
               <div class="url-input-wrapper">
                 <input id="tiktokSourceInput" type="url" class="modern-input" placeholder="https://www.tiktok.com/@cuenta/video/123456789">
-                <button class="primary-button analyze-single-btn" data-platform="tiktok" type="button">
+                <button class="primary-button analyze-single-btn" data-role-min="Analyst" data-platform="tiktok" type="button">
                   <span>Analizar TikTok</span>
                 </button>
               </div>
@@ -977,7 +977,7 @@
               <label for="xSourceInput" class="input-label">URL de X (Perfil o Post /status/123)</label>
               <div class="url-input-wrapper">
                 <input id="xSourceInput" type="url" class="modern-input" placeholder="https://x.com/cuenta/status/123456789">
-                <button class="primary-button analyze-single-btn" data-platform="x" type="button">
+                <button class="primary-button analyze-single-btn" data-role-min="Analyst" data-platform="x" type="button">
                   <span>Analizar X</span>
                 </button>
               </div>
@@ -1128,7 +1128,7 @@
               </div>
 
               <div class="analyze-btn-container">
-                <button class="primary-button analyze-button" id="analyzeButton" type="button">
+                <button class="primary-button analyze-button" id="analyzeButton" type="button" data-role-min="Analyst">
                   <span>Analizar Todas las Redes</span>
                 </button>
               </div>
@@ -1578,6 +1578,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=sentia-20261022-rubrica" defer></script>
+  <script src="/app.js?v=sentia-20261025-monitoreo" defer></script>
 </body>
 </html>

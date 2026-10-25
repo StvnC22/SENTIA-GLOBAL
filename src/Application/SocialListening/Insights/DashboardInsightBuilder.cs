@@ -151,7 +151,7 @@ public static class DashboardInsightBuilder
         var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var comment in comments)
         {
-            var text = $"{comment.Text} {comment.PostTitle}".ToLowerInvariant();
+            var text = comment.Text.ToLowerInvariant();
             foreach (
                 System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(
                     text,
@@ -204,14 +204,13 @@ public static class DashboardInsightBuilder
         var positive = comments.Count(c => c.Sentiment.Label == "positive");
         var neutral = comments.Count(c => c.Sentiment.Label == "neutral");
         var negative = comments.Count(c => c.Sentiment.Label == "negative");
-        var dominant = new[]
-        {
-            ("positivo", positive),
-            ("neutral", neutral),
-            ("negativo", negative),
-        }
+        var ranked = new[] { ("positivo", positive), ("neutral", neutral), ("negativo", negative) }
             .OrderByDescending(x => x.Item2)
-            .First();
+            .ToArray();
+        var dominantNote =
+            ranked[0].Item2 == ranked[1].Item2
+                ? $"No hay un sentimiento dominante: {ranked[0].Item1} y {ranked[1].Item1} empatan"
+                : $"El sentimiento dominante es {ranked[0].Item1} ({Pct(ranked[0].Item2, total)}%)";
 
         var topicLabel = string.IsNullOrWhiteSpace(topic)
             ? "el tema monitoreado"
@@ -268,8 +267,8 @@ public static class DashboardInsightBuilder
                 : $" Términos más frecuentes: {string.Join(", ", terms.Take(5).Select(t => $"{t.Term} ({t.Count})"))}.";
 
         return $"Resumen ejecutivo del Observatorio Territorial: se analizaron {total} opiniones públicas sobre {topicLabel}. "
-            + $"Frecuencia por red: {networkFrequencies}. El sentimiento dominante es {dominant.Item1} "
-            + $"({Pct(dominant.Item2, total)}%), con {Pct(positive, total)}% positivo, {Pct(neutral, total)}% neutro y {Pct(negative, total)}% negativo. "
+            + $"Frecuencia por red: {networkFrequencies}. {dominantNote}, "
+            + $"con {Pct(positive, total)}% positivo, {Pct(neutral, total)}% neutro y {Pct(negative, total)}% negativo. "
             + $"{trendNote} {geoNote} {aspectNote}{emotionNote}{termsNote}";
     }
 

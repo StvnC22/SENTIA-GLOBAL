@@ -29,4 +29,28 @@ public class BooleanQueryMatcherTests
             .Matches("uleam|universidad", "La universidad sigue creciendo")
             .ShouldBeTrue();
     }
+
+    [Test]
+    public void Matches_PalabrasSueltas_SeCombinanConY()
+    {
+        BooleanQueryMatcher
+            .Matches("ULEAM Portoviejo", "Portoviejo celebra a la ULEAM")
+            .ShouldBeTrue();
+        BooleanQueryMatcher.Matches("ULEAM Quito", "Portoviejo celebra a la ULEAM").ShouldBeFalse();
+        BooleanQueryMatcher
+            .Matches("ULEAM (matrícula|admisiones)", "ULEAM abre admisiones")
+            .ShouldBeTrue();
+        BooleanQueryMatcher
+            .Matches("\"no funciona\"", "El sistema no funciona otra vez")
+            .ShouldBeTrue();
+        BooleanQueryMatcher.Matches("\"no funciona\"", "Funciona y no hay quejas").ShouldBeFalse();
+    }
+
+    [Test]
+    public void Matches_NoEnMinuscula_EsPalabraYGuionExcluye()
+    {
+        BooleanQueryMatcher.Matches("sistema no funciona", "El sistema no funciona").ShouldBeTrue();
+        BooleanQueryMatcher.Matches("ULEAM -spam", "ULEAM spam gratis").ShouldBeFalse();
+        BooleanQueryMatcher.Matches("ULEAM -spam", "ULEAM matrícula").ShouldBeTrue();
+    }
 }

@@ -23,7 +23,8 @@ public class WebApiFactory(string connectionString) : WebApplicationFactory<Prog
                 .AddSingleton<IApiCredentialStore, InMemoryApiCredentialStore>();
             services
                 .RemoveAll<ISocialCommentProvider>()
-                .AddSingleton<ISocialCommentProvider, DemoSocialCommentProvider>();
+                .AddSingleton<DemoSocialCommentProvider>()
+                .AddSingleton<ISocialCommentProvider, LiveWhenSourcedProvider>();
             services
                 .RemoveAll<ISentimentAnalyzer>()
                 .AddSingleton<ISentimentAnalyzer, LocalSentimentAnalyzer>();
@@ -37,6 +38,30 @@ public class WebApiFactory(string connectionString) : WebApplicationFactory<Prog
                     return mock.Object;
                 });
         });
+    }
+
+    private sealed class LiveWhenSourcedProvider(DemoSocialCommentProvider demo)
+        : ISocialCommentProvider
+    {
+        public async Task<SocialCommentFetchResult> FetchAsync(
+            string? platform,
+            bool refresh,
+            CancellationToken cancellationToken,
+            string? topic = null,
+            IReadOnlyDictionary<string, string>? sourceUrls = null
+        )
+        {
+            var result = await demo.FetchAsync(
+                platform,
+                refresh,
+                cancellationToken,
+                topic,
+                sourceUrls
+            );
+            return sourceUrls?.Values.Any(url => !string.IsNullOrWhiteSpace(url)) == true
+                ? SocialCommentFetchResult.Live(result.Comments)
+                : result;
+        }
     }
 
     private sealed class InMemoryApiCredentialStore : IApiCredentialStore

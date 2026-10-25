@@ -9,6 +9,7 @@ const state = {
   comments: [],
   summary: null,
   insights: null,
+  searchMessage: "",
   platform: "global",
   prompt: "",
   query: "",
@@ -574,6 +575,10 @@ function renderServerWordCloud(containerId, metaId, terms) {
 function renderExecutiveSummary() {
   const el = document.getElementById("observatorioExecutiveSummary");
   if (!el) return;
+  if (!state.comments.length && state.searchMessage) {
+    el.textContent = state.searchMessage;
+    return;
+  }
   el.textContent = state.insights?.executiveSummary || buildLocalExecutiveSummary(state.comments);
 }
 
@@ -1515,7 +1520,6 @@ function buildObservatorioQueryParams(extra = {}) {
   if (obs.parish) query.set("parish", obs.parish);
   if (obs.fromDate) query.set("fromDate", `${obs.fromDate}T00:00:00-05:00`);
   if (obs.toDate) query.set("toDate", `${obs.toDate}T23:59:59-05:00`);
-  if (state.prompt) query.set("prompt", state.prompt);
   for (const [key, value] of Object.entries(extra)) {
     if (value != null && value !== "") query.set(key, value);
   }
@@ -1523,18 +1527,18 @@ function buildObservatorioQueryParams(extra = {}) {
 }
 
 async function fetchPlatformComments(item, { force, signal, prompt }) {
-  const query = new URLSearchParams({ platform: item.platform, [`${item.platform}Url`]: item.url });
-  const effectivePrompt = prompt || state.prompt;
-  if (effectivePrompt) query.set("prompt", effectivePrompt);
-  if (force || isDirectPostUrl(item.platform, item.url)) {
-    query.set("refresh", "true");
-  }
-
-  let response = await apiFetch(`/api/social-comments?${query}`, { signal });
+  const response = await apiFetch("/api/social-comments/collect", {
+    method: "POST",
+    signal,
+    body: JSON.stringify({
+      platform: item.platform,
+      sourceUrl: item.url,
+      refresh: Boolean(force || isDirectPostUrl(item.platform, item.url)),
+      prompt: (prompt || state.prompt || "").trim() || null
+    })
+  });
   if (!response.ok) {
-    let probText = `HTTP ${response.status}`;
-    try { const prob = await response.json(); probText = prob.detail || prob.title || probText; } catch (e) {}
-    throw new Error(probText);
+    throw new Error(await describeProblem(response, "No se pudo recolectar"));
   }
   return await response.json();
 }
@@ -1553,9 +1557,9 @@ async function runObservatorioSearch({ notify = true } = {}) {
   syncObservatorioFromForm();
   updateNotch("Consultando Observatorio…", true);
   try {
-    const query = buildObservatorioQueryParams({ refresh: "true" });
+    const query = buildObservatorioQueryParams();
     const response = await apiFetch(`/api/social-comments?${query}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) throw new Error(await describeProblem(response, "No se pudo consultar el Observatorio"));
     const dashboard = await response.json();
     state.comments = deduplicateComments((dashboard.comments || []).map(c => ({
       ...c,
@@ -1564,6 +1568,7 @@ async function runObservatorioSearch({ notify = true } = {}) {
     state.summary = dashboard.summary || null;
     state.insights = dashboard.insights || null;
     state.dataSource = dashboard.dataSource || "demo";
+    state.searchMessage = dashboard.message || "";
     evaluateSentimentAlert(dashboard.summary);
     renderActiveView();
     updateNotch(dashboard.dataSource === "live" ? "Datos reales" : "Modo demostrativo");
@@ -1572,8 +1577,11 @@ async function runObservatorioSearch({ notify = true } = {}) {
     }
     if (dashboard.message) showToast(dashboard.message);
   } catch (error) {
+    const message = error.message || "No se pudo consultar el Observatorio";
+    const summary = document.getElementById("observatorioExecutiveSummary");
+    if (summary) summary.textContent = message;
     updateNotch("Error de consulta");
-    showToast(error.message || "No se pudo consultar el Observatorio");
+    showToast(message);
   }
 }
 
@@ -1583,7 +1591,7 @@ async function exportObservatorio(format) {
   const url = `/api/social-comments/export?${query}`;
   const response = await apiFetch(url);
   if (!response.ok) {
-    showToast("No se pudo exportar");
+    showToast(await describeProblem(response, "No se pudo exportar"));
     return;
   }
   const blob = await response.blob();
@@ -1623,6 +1631,10 @@ async function scheduleCurrentMonitor() {
     return;
   }
   const interval = Number(document.getElementById("observatorioIntervalInput")?.value || 60);
+  if (!Number.isInteger(interval) || interval < 1 || interval > 1440) {
+    showToast("El intervalo debe ser un número entero entre 1 y 1440 minutos.");
+    return;
+  }
   const name = `${state.observatorio.topic}${state.observatorio.canton ? " · " + state.observatorio.canton : ""}`;
   const response = await apiFetch("/api/monitors", {
     method: "POST",
@@ -1637,7 +1649,7 @@ async function scheduleCurrentMonitor() {
     })
   });
   if (!response.ok) {
-    showToast("No se pudo crear el monitoreo (verifique permisos)");
+    showToast(await describeProblem(response, "No se pudo crear el monitoreo"));
     return;
   }
   showToast("Monitoreo periódico programado");
@@ -1823,6 +1835,7 @@ function renderUsersPanel() {
 }
 
 async function describeProblem(response, fallback) {
+  if (response.status === 403) return "Su rol no permite esta acción.";
   try {
     const problem = await response.json();
     const details = problem.errors ? Object.values(problem.errors).flat().join(" ") : "";

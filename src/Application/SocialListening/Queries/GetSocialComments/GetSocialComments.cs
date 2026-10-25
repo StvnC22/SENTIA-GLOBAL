@@ -108,22 +108,12 @@ internal class GetSocialCommentsQueryHandler(
             .OrderByDescending(comment => comment.PublishedAt)
             .ToArray();
 
-        var summary = new SentimentSummary(
-            comments.Length,
-            comments.Count(comment => comment.Sentiment.Label == "positive"),
-            comments.Count(comment => comment.Sentiment.Label == "neutral"),
-            comments.Count(comment => comment.Sentiment.Label == "negative")
-        );
-
-        var insights = DashboardInsightBuilder.Build(comments, request.Topic);
-
-        return new SocialListeningDashboard(
+        return SocialListeningDashboardFactory.Create(
             comments,
-            summary,
+            request.Topic,
             timeProvider.GetUtcNow(),
             fetchResult.DataSource,
-            fetchResult.Message,
-            insights
+            fetchResult.Message
         );
     }
 

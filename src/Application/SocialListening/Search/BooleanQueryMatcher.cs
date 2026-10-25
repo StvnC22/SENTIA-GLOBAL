@@ -66,11 +66,29 @@ public static partial class BooleanQueryMatcher
 
     private static bool MatchTerm(string term, string haystack)
     {
-        term = term.Trim().Trim('"');
+        term = term.Trim();
         if (term.Length == 0)
         {
             return true;
         }
+
+        var tokens = TokenizeTerm(term);
+        if (tokens.Count > 1)
+        {
+            return tokens.All(token => Evaluate(token, haystack));
+        }
+
+        if (term.Length > 1 && term.StartsWith('-'))
+        {
+            return !Evaluate(term[1..], haystack);
+        }
+
+        if (term.Length > 1 && term.StartsWith('"') && term.EndsWith('"'))
+        {
+            return MatchSingleToken(term[1..^1], haystack);
+        }
+
+        term = term.Trim('"');
 
         // Sinónimos: palabra~sinonimo1,sinonimo2
         if (term.Contains('~', StringComparison.Ordinal))
@@ -102,6 +120,37 @@ public static partial class BooleanQueryMatcher
         }
 
         return MatchSingleToken(term, haystack);
+    }
+
+    private static List<string> TokenizeTerm(string term)
+    {
+        var tokens = new List<string>();
+        var buffer = new StringBuilder();
+        var inQuotes = false;
+        var depth = 0;
+        foreach (var c in term)
+        {
+            if (c == '"')
+                inQuotes = !inQuotes;
+            if (!inQuotes && c == '(')
+                depth++;
+            if (!inQuotes && c == ')')
+                depth = Math.Max(0, depth - 1);
+
+            if (char.IsWhiteSpace(c) && !inQuotes && depth == 0)
+            {
+                if (buffer.Length > 0)
+                    tokens.Add(buffer.ToString());
+                buffer.Clear();
+                continue;
+            }
+
+            buffer.Append(c);
+        }
+
+        if (buffer.Length > 0)
+            tokens.Add(buffer.ToString());
+        return tokens;
     }
 
     private static bool MatchSingleToken(string token, string haystack)
@@ -198,7 +247,7 @@ public static partial class BooleanQueryMatcher
             .Aggregate(new StringBuilder(), (b, c) => b.Append(char.ToLowerInvariant(c)))
             .ToString();
 
-    [GeneratedRegex(@"\bNO\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\b(NO|NOT)\b", RegexOptions.CultureInvariant)]
     private static partial Regex SpanishNotRegex();
 
     [GeneratedRegex(@"\bY\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

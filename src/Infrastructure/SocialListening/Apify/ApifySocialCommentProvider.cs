@@ -14,7 +14,8 @@ public sealed class ApifySocialCommentProvider(
     IApiCredentialStore credentialStore,
     IOptions<SocialListeningOptions> options,
     IMemoryCache cache,
-    ILogger<ApifySocialCommentProvider> logger
+    ILogger<ApifySocialCommentProvider> logger,
+    IHttpClientFactory httpClientFactory
 ) : ISocialCommentProvider
 {
     private static readonly string[] Platforms = ["instagram", "facebook", "tiktok", "x"];
@@ -383,8 +384,10 @@ public sealed class ApifySocialCommentProvider(
             );
         }
 
+        var resolvedUrl = await ResolveTikTokShortUrlAsync(profileUrl, cancellationToken);
+
         // URL de un video concreto → comentarios de esa publicación.
-        if (TryParseTikTokVideoUrl(profileUrl, out var videoUrl, out _))
+        if (TryParseTikTokVideoUrl(resolvedUrl, out var videoUrl, out _))
         {
             var commentsLimit = Math.Max(
                 settings.MaxCommentsPerPost,
@@ -410,7 +413,35 @@ public sealed class ApifySocialCommentProvider(
                 .ToArray();
         }
 
-        var profileName = ExtractProfileName("tiktok", profileUrl);
+        // Si TikTok no redirige el enlace corto, pásalo al actor como URL de video.
+        // No debe interpretarse el código del enlace (p. ej. ZSgXo6Gt5) como usuario.
+        if (IsTikTokShortUrl(profileUrl))
+        {
+            var commentsLimit = Math.Max(
+                settings.MaxCommentsPerPost,
+                Math.Min(settings.MaxCommentsPerPlatform, 200)
+            );
+            logger.LogInformation("TikTok: comentarios del enlace corto compartido");
+            var fromShortUrl = await apifyClient.RunActorSyncAsync(
+                settings.Actors.TikTokComments,
+                new
+                {
+                    postURLs = new[] { profileUrl },
+                    commentsPerPost = commentsLimit,
+                    maxRepliesPerComment = 0,
+                },
+                apifyToken,
+                cancellationToken
+            );
+
+            return fromShortUrl
+                .Select(item => MapTikTokComment(item, profileUrl))
+                .Where(comment => comment is not null)
+                .Cast<SocialCommentDraft>()
+                .ToArray();
+        }
+
+        var profileName = ExtractProfileName("tiktok", resolvedUrl);
 
         // 1) Abrir videos del perfil y sacar comentarios.
         var fromProfile = await apifyClient.RunActorSyncAsync(
@@ -487,6 +518,61 @@ public sealed class ApifySocialCommentProvider(
             .Where(comment => comment is not null)
             .Cast<SocialCommentDraft>()
             .ToArray();
+    }
+
+    private async Task<string> ResolveTikTokShortUrlAsync(
+        string url,
+        CancellationToken cancellationToken
+    )
+    {
+        if (!IsTikTokShortUrl(url))
+        {
+            return url;
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.UserAgent.ParseAdd(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36"
+            );
+            using var response = await httpClientFactory
+                .CreateClient()
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+
+            return response.RequestMessage?.RequestUri?.ToString() ?? url;
+        }
+        catch (HttpRequestException exception)
+        {
+            logger.LogInformation(
+                exception,
+                "No se pudo resolver el enlace corto de TikTok; se probará directamente con Apify"
+            );
+            return url;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation(
+                "La resolución del enlace corto de TikTok agotó el tiempo; se probará directamente con Apify"
+            );
+            return url;
+        }
+    }
+
+    private static bool IsTikTokShortUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        var host = uri.Host.ToLowerInvariant();
+        return host is "vt.tiktok.com" or "vm.tiktok.com"
+            || (host is "tiktok.com" or "www.tiktok.com")
+                && uri.AbsolutePath.StartsWith("/t/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ExtractVideoUrl(JsonElement item)
